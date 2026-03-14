@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { StatusBadge } from '@/components/ui/badge'
+import { ConfirmDialog } from '@/components/admin/ConfirmDialog'
 
 type AdminTask = {
   id: string
@@ -13,6 +14,18 @@ type AdminTask = {
   submission_count: number
   created_at: string
 }
+
+// admin이 변경 가능한 범위
+const ALLOWED_STATUSES = ['open', 'reviewing', 'disputed', 'cancelled'] as const
+type AllowedStatus = typeof ALLOWED_STATUSES[number]
+const STATUS_LABELS: Record<AllowedStatus, string> = {
+  open: '공개',
+  reviewing: '검토 중',
+  disputed: '분쟁',
+  cancelled: '취소',
+}
+
+type Confirm = { taskId: string; title: string; nextStatus: AllowedStatus } | null
 
 function Skeleton() {
   return (
@@ -32,42 +45,73 @@ function formatBudget(min: number | null, max: number | null): string {
 }
 
 export default function AdminTasksPage() {
-  const [tasks, setTasks]     = useState<AdminTask[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
+  const [tasks, setTasks]       = useState<AdminTask[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState<string | null>(null)
+  const [token, setToken]       = useState('')
+  const [confirm, setConfirm]   = useState<Confirm>(null)
+  const [saving, setSaving]     = useState<string | null>(null)
+  const [actionMsg, setActionMsg] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return
-
+      setToken(session.access_token)
       const res = await fetch('/api/admin/tasks', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const json = await res.json()
-
-      if (!res.ok) {
-        setError(json.error ?? '오류가 발생했습니다')
-      } else {
-        setTasks(json.data ?? [])
-      }
+      if (!res.ok) setError(json.error ?? '오류가 발생했습니다')
+      else setTasks(json.data ?? [])
       setLoading(false)
     })
   }, [])
 
+  async function handleStatusChange() {
+    if (!confirm) return
+    setSaving(confirm.taskId)
+    setConfirm(null)
+
+    const res = await fetch(`/api/admin/tasks/${confirm.taskId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: confirm.nextStatus }),
+    })
+    const json = await res.json()
+    setSaving(null)
+
+    if (!res.ok) {
+      setActionMsg(`❌ ${json.error}`)
+    } else {
+      setTasks(prev => prev.map(t => t.id === confirm.taskId ? { ...t, status: confirm.nextStatus } : t))
+      setActionMsg(`✓ "${confirm.title.slice(0, 20)}..." → ${STATUS_LABELS[confirm.nextStatus]}`)
+    }
+    setTimeout(() => setActionMsg(null), 3000)
+  }
+
+  // 종단 상태(completed/expired)는 변경 불가
+  const isTerminal = (s: string) => ['completed', 'expired'].includes(s)
+
   return (
     <div className="px-8 py-8">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-50">작업 목록</h1>
-        <p className="mt-0.5 text-sm text-gray-500">삭제되지 않은 최근 작업 50건</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-50">작업 목록</h1>
+          <p className="mt-0.5 text-sm text-gray-500">삭제되지 않은 최근 작업 50건</p>
+        </div>
+        {actionMsg && (
+          <span className={`rounded-xl px-3 py-1.5 text-xs font-medium ${
+            actionMsg.startsWith('❌')
+              ? 'border border-red-800 bg-red-950/30 text-red-400'
+              : 'border border-emerald-800 bg-emerald-950/30 text-emerald-400'
+          }`}>{actionMsg}</span>
+        )}
       </div>
 
       {loading && <Skeleton />}
-
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-950/30 px-4 py-3 text-sm text-red-400">
-          {error}
-        </div>
+        <div className="rounded-lg border border-red-800 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>
       )}
 
       {!loading && !error && (
@@ -80,28 +124,42 @@ export default function AdminTasksPage() {
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">제출수</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">예산</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">등록일</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">상태 변경</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {tasks.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-600">
-                    작업이 없습니다
-                  </td>
-                </tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">작업이 없습니다</td></tr>
               ) : (
-                tasks.map((t) => (
+                tasks.map(t => (
                   <tr key={t.id} className="hover:bg-gray-900/40 transition-colors">
                     <td className="max-w-xs px-4 py-3">
                       <p className="truncate text-gray-200">{t.title}</p>
                     </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={t.status} />
-                    </td>
+                    <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
                     <td className="px-4 py-3 text-right text-gray-400">{t.submission_count}</td>
                     <td className="px-4 py-3 text-gray-400">{formatBudget(t.budget_min, t.budget_max)}</td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {new Date(t.created_at).toLocaleDateString('ko-KR')}
+                    <td className="px-4 py-3 text-gray-500">{new Date(t.created_at).toLocaleDateString('ko-KR')}</td>
+                    <td className="px-4 py-3 text-center">
+                      {isTerminal(t.status) ? (
+                        <span className="text-xs text-gray-700">종단</span>
+                      ) : (
+                        <select
+                          disabled={saving === t.id}
+                          value=""
+                          onChange={e => {
+                            const v = e.target.value as AllowedStatus
+                            if (v && v !== t.status) setConfirm({ taskId: t.id, title: t.title, nextStatus: v })
+                            e.target.value = ''
+                          }}
+                          className="rounded-lg border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 outline-none hover:border-gray-500 disabled:opacity-40"
+                        >
+                          <option value="" disabled>변경...</option>
+                          {ALLOWED_STATUSES.filter(s => s !== t.status).map(s => (
+                            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -110,6 +168,16 @@ export default function AdminTasksPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirm}
+        title="작업 상태 변경"
+        description={confirm ? `"${confirm.title.slice(0, 30)}" 상태를 "${STATUS_LABELS[confirm.nextStatus]}"(으)로 변경하시겠습니까?` : ''}
+        confirmLabel="변경"
+        danger={confirm?.nextStatus === 'cancelled' || confirm?.nextStatus === 'disputed'}
+        onConfirm={handleStatusChange}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   )
 }
