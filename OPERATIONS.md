@@ -1,83 +1,84 @@
 # AgentBid 운영 마감 문서
 
-## 현재 상태 (2026-03-14 기준)
+## 최종 상태 (2026-03-14)
 
-| 구분 | 상태 |
-|---|---|
-| MVP 구현 | ✅ 완료 (commit c33ce1b) |
-| Vercel 배포 | ✅ Ready (`agentbid.vercel.app`) |
-| 핵심 Smoke Test | ✅ 통과 |
-| **결제 세션 실검증** | ⏳ **후속 체크리스트 (1건)** |
-
----
-
-## 후속 체크리스트 (1건)
-
-### Stripe Checkout 실결제 smoke test
-
-- [ ] owner 로그인 → task 상세 → submission 선택 → checkout 진행
-- [ ] Stripe test card `4242 4242 4242 4242` 사용
-- [ ] `checkout.session.completed` webhook 수신 확인
-  - Stripe Dashboard → Workbench → Event destinations → sophisticated-inspiration → Event deliveries
-- [ ] `/orders/{sessionId}/success` 페이지 폴링 정상 완료 확인
-- [ ] `orders.status = paid` DB 반영 확인
-- [ ] `payouts` 레코드 생성 확인 (`status = pending`)
-
-실패 시:
-- [ ] `payment_intent.payment_failed` webhook 수신 확인
-- [ ] fail 페이지 또는 대시보드 에러 표시 확인
-
----
-
-## Stripe test → live 전환 체크리스트
-
-> 이 단계는 실제 서비스 오픈 직전에 수행
-
-- [ ] Stripe 라이브 키 발급 (`sk_live_...`)
-  - Dashboard → Developers → API keys → Reveal live secret key
-- [ ] Vercel env 교체
-  - `STRIPE_SECRET_KEY` = `sk_live_...`
-  - `STRIPE_WEBHOOK_SECRET` = (아래 webhook 재등록 후 발급값)
-- [ ] Stripe Dashboard → Webhooks → Add endpoint (live mode)
-  - URL: `https://agentbid.vercel.app/api/webhooks/stripe`
-  - 이벤트: `checkout.session.completed`, `payment_intent.payment_failed`, `charge.refunded`, `account.updated`
-  - 신규 `STRIPE_WEBHOOK_SECRET` Vercel env 반영
-- [ ] Stripe Connect → live mode 계좌 onboarding 재검증
-  - test mode Connect 계좌와 live mode는 별개
-  - provider는 live 환경에서 다시 onboarding 필요
-- [ ] 전환 후 라이브 smoke test 1회 (소액 실결제)
-- [ ] Vercel 재배포 (env 변경 반영)
-
----
-
-## Known Issues / Follow-up
-
-| 항목 | 내용 | 우선순위 |
+| 항목 | 상태 | 비고 |
 |---|---|---|
-| Stripe Connect KR 지원 | Express 계좌 생성 시 KR 국가 지원 여부 확인 필요 | Medium |
-| Edge Function `transfer-payouts` | `released` → `transferred` 자동 이체 미배포 | High |
-| `adam-epiclions/agentbid` 레포 삭제 | 미사용 레포 정리 필요 | Low |
-| `tsc --noEmit` CI 추가 | Vercel 빌드 전 타입 체크 자동화 | Low |
-| E2E 테스트 계정 정리 | e2e_owner / e2e_provider 실서비스 전 삭제 | Medium |
-| pg_cron 스케줄 확인 | `release-matured-payouts` 02:00 UTC 실행 여부 모니터링 | Medium |
+| MVP 구현 | ✅ PASS | commit `c33ce1b` (43 files) |
+| Vercel 배포 | ✅ PASS | `https://agentbid.vercel.app` |
+| Stripe webhook | ✅ PASS | `sophisticated-inspiration`, 4 events, Active |
+| Supabase Auth URL | ✅ PASS | Site URL + redirect 설정 완료 |
+| 결제 success E2E | ✅ PASS | `order.paid`, `task.completed`, `payout.pending` 확인 |
+| 결제 fail E2E | ✅ PASS | `payment_intent.payment_failed` → `order.cancelled` |
+| task.status completed 전환 | ✅ PASS | commit `0777c10` |
+| transfer-payouts Edge Fn | ✅ PASS | 배포 완료, `verify_jwt=false` |
+| transfer-payouts cron | ✅ PASS | `0 3 * * *` UTC, migration `011` 적용 |
+| 테스트 계정/데이터 삭제 | ✅ PASS | DB 전 테이블 0건 |
+| live Stripe 전환 | 🔴 BLOCKED | Stripe 계정 `details_submitted=false` — business info 미제출 |
 
 ---
 
-## Edge Function `transfer-payouts` 배포 (미완)
+## live Stripe 전환 체크리스트
 
-> Supabase Edge Function — `released` 상태 payout을 Stripe Transfer로 이체
+> **블로커**: `acct_1TAQawJEx5NHulor` — `charges_enabled=false`, `details_submitted=false`  
+> Adam이 [Stripe Dashboard](https://dashboard.stripe.com/account) 에서 비즈니스 정보 제출 완료 후 진행
 
-배포 방법:
-```bash
-cd agentbid
-supabase functions deploy transfer-payouts
-```
+전환 순서:
+1. Stripe Dashboard → 계정 활성화 완료 (`charges_enabled=true` 확인)
+2. Dashboard → Developers → API keys → Live secret key 발급 (`sk_live_...`)
+3. Dashboard → Webhooks → **live mode** endpoint 추가
+   - URL: `https://agentbid.vercel.app/api/webhooks/stripe`
+   - 이벤트: `checkout.session.completed`, `payment_intent.payment_failed`, `charge.refunded`, `account.updated`
+   - 신규 `whsec_live_...` 발급
+4. Vercel env 교체 (재배포 자동 트리거)
+   - `STRIPE_SECRET_KEY` = `sk_live_...`
+   - `STRIPE_WEBHOOK_SECRET` = `whsec_live_...`
+5. Stripe Connect — live mode Express 계좌는 test와 별개: provider 재onboarding 필요
+6. 소액 실결제 smoke test 1회 후 확인
 
-스케줄: 매일 03:00 UTC (`pg_cron`)
-연결 DB 함수: `transfer_released_payouts()`
+---
 
-**주의:** 이 함수가 없으면 `released` 상태가 `transferred`로 전환되지 않음.  
-현재는 수동 또는 cron 없이 `transferred` 상태 미반영 상태.
+## 검증 완료 흐름 (test mode 기준)
+
+### 결제 성공 E2E (2026-03-14)
+| 항목 | 값 |
+|---|---|
+| card | `4242 4242 4242 4242` |
+| task | `348e16b3` (Task Status E2E Test) |
+| submission | `5c4a5a27` |
+| order | `fff43312` → `status=paid` |
+| task | → `status=completed` ✅ |
+| submission | → `status=purchased` ✅ |
+| payout | 자동 생성 (`status=pending`, `amount=8000`) ✅ |
+| webhook | `checkout.session.completed` → DB 반영 ✅ |
+
+### 결제 실패 E2E (2026-03-14)
+| 항목 | 값 |
+|---|---|
+| card | `4000 0000 0000 0002` (decline) |
+| order | `b0ca3910` → `status=cancelled` ✅ |
+| pi | `pi_3TAiZnJEx5NHulor1tWbtGGD` |
+| webhook | `payment_intent.payment_failed` → checkout_session fallback 매핑 ✅ |
+
+### cancel E2E
+- 뒤로 버튼 → `cancel_url = /tasks/{task_id}` redirect ✅
+
+---
+
+## cron 스케줄 현황
+
+| job | schedule | 설명 |
+|---|---|---|
+| `close-expired-tasks` | `0 * * * *` (매시간) | reviewing 상태 task 마감 |
+| `release-matured-payouts` | `0 2 * * *` (매일 02:00 UTC) | pending → released 전환 |
+| `transfer-payouts` | `0 3 * * *` (매일 03:00 UTC) | released → Stripe Transfer → transferred |
+
+### transfer-payouts 실행 흐름
+- `pg_cron` → `pg_net.http_post` → Supabase Edge Function
+- URL: `https://xlhiafqcoyltgyfezdnm.supabase.co/functions/v1/transfer-payouts`
+- `verify_jwt=false` (내부 cron 전용)
+- 로그 확인: Supabase Dashboard → Edge Functions → transfer-payouts → Logs
+- 실패 시: 해당 payout skip (error 기록), 다음 실행(24h 후) 자동 재시도
 
 ---
 
@@ -86,26 +87,52 @@ supabase functions deploy transfer-payouts
 | 항목 | 값 |
 |---|---|
 | 배포 URL | `https://agentbid.vercel.app` |
-| GitHub | `commongits-hub/agentbid` (private) |
-| Supabase | `xlhiafqcoyltgyfezdnm` (Free tier) |
+| GitHub | `commongits-hub/agentbid` (main) |
+| Supabase | `xlhiafqcoyltgyfezdnm` |
 | Stripe 모드 | **Test** (live 전환 전) |
-| Stripe webhook | `sophisticated-inspiration` (Active, 4 events) |
-| Stripe Connect 모드 | Express / Marketplace |
+| Stripe webhook ID | `we_1TAgezJEx5NHulorGJwyjPw6` |
+| Stripe Connect | Express / Marketplace |
+| NEXT_PUBLIC_APP_URL | `https://agentbid.vercel.app` |
 
 ---
 
-## 계정 정보 (test only)
+## 테스트 데이터 삭제 증적 (2026-03-14)
 
-| 역할 | 이메일 | 비고 |
+삭제 전 DB 보유 데이터:
+
+| 테이블 | 삭제 건수 | 대표 상태 예시 |
 |---|---|---|
-| owner (test) | `e2e_owner@agentbid.test` | smoke test 전용 |
-| provider (test) | `e2e_provider@agentbid.test` | stripe account: `acct_1TAfhlQrvuZfdGVn` |
+| tasks | 11건 | open / completed / draft |
+| orders | 10건 | paid(7), cancelled(1), pending(2) |
+| payouts | 6건 | pending(3), hold(1), released(1), transferred(1) |
+| submissions | 11건 | purchased(6), submitted(5) |
+| users (public) | 7건 | test 계정 전용 |
+| agents | 2건 | stripe_onboarding_completed=false |
+
+대표 ID 기록:
+- 결제 성공 order: `fff43312-c249-4a82-b5c0-2b4509f3ce30` (paid, ₩10,000)
+- 결제 실패 order: `b0ca3910-08c5-468f-b0ff-274a39e5afb7` (cancelled)
+- released payout 샘플: `f4e05a70-6b55-4a94-8e28-3159b23b8779` (₩24,000)
+- transferred payout 샘플: `0b30da36-daec-4180-a67b-1f177233ed3d` (₩24,000)
+- Stripe Express test account: `acct_1TAfhlQrvuZfdGVn` (미완료, live 전환 시 재생성 필요)
+
+삭제 후 최종 상태: **모든 테이블 0건** ✅
 
 ---
 
-## 다음 우선순위 (배포 후)
+## Stripe Connect 주의사항
 
-1. **Edge Function `transfer-payouts` 배포** — released→transferred 자동화
-2. **Stripe 결제 세션 실검증** — checkout success/fail smoke test
-3. **E2E 테스트 계정 정리** — 실서비스 전 삭제
-4. **live Stripe 전환** — 위 체크리스트 순서대로
+- **test mode Express 계좌** `acct_1TAfhlQrvuZfdGVn` — Stripe에 존재하나 DB 삭제됨
+- live mode 전환 후 provider는 `/onboarding/stripe` 에서 **새로운 live 계좌** 생성 필요
+- test / live Connect 계좌는 Stripe 내부적으로 완전 분리됨
+
+---
+
+## Known Issues (운영 전 잔여)
+
+| 항목 | 내용 | 처리 |
+|---|---|---|
+| live Stripe 전환 | Stripe 계정 활성화 미완 | Adam이 Dashboard에서 직접 처리 |
+| `adam-epiclions/agentbid` 레포 | 미사용 구 레포 | adam-epiclions 로그인 후 삭제 |
+| Stripe Connect KR | live mode Express 계좌 KR 지원 여부 | live 전환 시 확인 |
+| `tsc --noEmit` CI | 타입 체크 자동화 미적용 | 선택사항 |
