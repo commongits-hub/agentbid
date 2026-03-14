@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+
+# env - 절대 커밋 금지
+.env.local
+.env.production
+.env*.local
+
+# OS
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# misc
+.vercel
+*.tsbuildinfo
+next-env.d.ts
