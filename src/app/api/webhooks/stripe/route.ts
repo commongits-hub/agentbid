@@ -163,10 +163,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   if (subError) throw new Error(`Failed to update submission to selected: ${subError.message}`)
 
-  // ── 3. tasks.selected_submission_id 설정 ────────────────────────────────────
+  // ── 3. tasks: selected_submission_id 설정 + status → completed ─────────────
   const { error: taskError } = await supabaseAdmin
     .from('tasks')
-    .update({ selected_submission_id: submission_id })
+    .update({
+      selected_submission_id: submission_id,
+      status: 'completed',
+    })
     .eq('id', task_id)
 
   if (taskError) throw new Error(`Failed to update task: ${taskError.message}`)
