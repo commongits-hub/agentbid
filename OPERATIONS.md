@@ -212,3 +212,24 @@ cancelled        → terminal
 9182736455000002 → unblock_hold_payouts_on_connect (hold payouts 전용)
 ```
 두 함수는 status 기준 상호배타 row set을 처리하므로 lock 분리 안전.
+
+### Idempotency 규칙 (DB trigger 기준)
+
+**orders/payouts 동일 상태 재설정 허용** (webhook 재처리 안전)
+- `status = OLD.status`인 UPDATE는 상태 전이 allowlist 검사를 건너뜀
+- 금융 핵심 컬럼(amount, agent_id, order_id 등)은 same-state에서도 수정 불가
+- 이유: Stripe webhook은 동일 이벤트를 여러 번 전송할 수 있음
+
+### Refund 처리 규칙
+
+order status = `refunded` 전환 시 `trg_cancel_payout_on_refund` 자동 실행:
+
+| payout 상태 | 처리 |
+|---|---|
+| `pending` | → `cancelled` (hold_reason = NULL) |
+| `released` | → `cancelled` (hold_reason = NULL) |
+| `hold` | → `cancelled` (hold_reason = NULL) |
+| `transferred` | **변경 없음** — 이미 출금됨, 별도 회수 프로세스 필요 |
+
+`orders.paid → orders.refunded` 직행 허용 (Stripe `charge.refunded` 직접 수신 시)
+`orders.paid → orders.refund_requested → orders.refunded` 경유도 허용
