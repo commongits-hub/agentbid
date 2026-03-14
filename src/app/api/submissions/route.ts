@@ -47,7 +47,10 @@ const MAX_FILE_NAME    = 255               // 파일명 최대 길이
 
 // file_path 안전 패턴: 'submissions/{uuid}/{filename}' 형태, '..' 및 제어문자 불가
 // 예: submissions/550e8400-e29b-41d4-a716-446655440000/report.pdf
-const FILE_PATH_PATTERN = /^submissions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[^/\0]{1,255}$/
+// file_path 안전 패턴: submissions/{uuid}/{safe-filename}
+// 파일명 허용 문자: 알파벳(대소문자), 숫자, 점, 대시, 언더스코어
+// 차단: 공백, '..' traversal, 제어문자, 슬래시, 특수문자
+const FILE_PATH_PATTERN = /^submissions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-zA-Z0-9._-]{1,255}$/
 
 // ──────────────────────────────────────────────────────────────────────────────
 // GET /api/submissions?task_id=uuid
@@ -256,6 +259,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 6. content 최소 요건 ─────────────────────────────────────────────────
+  // 허용 조합:
+  //   text-only:  content_text 있음, file_path 없음
+  //   file-only:  file_path 있음, content_text 없음
+  //   text+file:  둘 다 있음 (파일 + 설명 텍스트 동시 제출)
+  // 금지: 둘 다 없음 (preview_text만 있는 제출은 불허)
   if (!content_text && !hasFile) {
     return NextResponse.json(
       { error: 'Either content_text or file_path is required' },
