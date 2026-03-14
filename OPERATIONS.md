@@ -156,3 +156,59 @@
 | `adam-epiclions/agentbid` 레포 | 미사용 구 레포 | adam-epiclions 로그인 후 삭제 |
 | Stripe Connect KR | live mode Express 계좌 KR 지원 여부 | live 전환 시 확인 |
 | `tsc --noEmit` CI | 타입 체크 자동화 미적용 | 선택사항 |
+
+---
+
+## DB 보안 강화 기록 (migrations 015–021)
+
+### 최신 커밋: `c21ad5d` (migration 021)
+
+### 상태 전이표 (DB 코드 공식 버전 — migration 021 기준)
+
+#### payouts
+```
+pending   → released  (release_matured_payouts cron)
+pending   → hold      (release_matured_payouts — Stripe 미연결)
+pending   → cancelled (cancel_payout_on_refund 트리거)
+hold      → released  (unblock_hold_payouts_on_connect 트리거)
+hold      → pending   (unblock_hold_payouts_on_connect 트리거)
+hold      → cancelled (cancel_payout_on_refund 트리거)
+released  → transferred (Edge Function: stripe transfer)
+released  → cancelled   (cancel_payout_on_refund 트리거)
+transferred → terminal (불변)
+cancelled   → terminal (불변)
+```
+- `payouts.order_id UNIQUE` → order당 payout 최대 1개
+- `transferred` payout은 환불 시에도 취소 불가 (별도 회수 프로세스 필요)
+
+#### orders
+```
+pending          → paid             (webhook: checkout.session.completed)
+pending          → failed           (webhook: payment_intent.payment_failed)
+pending          → cancelled        (webhook: checkout.session.expired)
+paid             → refund_requested (user API)
+paid             → refunded         (webhook: charge.refunded 직행 허용)
+refund_requested → refunded         (webhook: charge.refunded)
+failed           → terminal
+refunded         → terminal
+cancelled        → terminal
+```
+- webhook 재처리 idempotency: 동일 상태 재설정 허용 (금융 컬럼 잠금은 유지)
+
+### 알려진 한계
+
+| 항목 | 현황 | 향후 |
+|---|---|---|
+| 부분환불(partial refund) | `refunded` 단일 상태 처리 (full/partial 미구분) | `partial_refunded` 상태 또는 `refund_amount` 컬럼 추가 필요 |
+| payout cancel 사유 구분 | `hold_reason` 있으나 cancel 사유 없음 | `cancel_reason` 컬럼 추가 시 환불취소 vs 수동취소 구분 가능 |
+| released → transferred 레이스 | 환불과 Edge Function 동시 실행 시 DB 레벨 잠금 처리. transferred는 환불 취소 불가 | Edge Function에서 payout status 선행 확인 로직 추가 권장 |
+| emergency 수동 상태 수정 | trigger가 allowlist 강제. 비정상 상태 수동 수정은 migration 또는 직접 psql만 가능 | admin_override RPC 추가 가능 (별도 보안 검토 필요) |
+| submissions 원문 마스킹 | API shaping 의존. DB 레벨 컬럼 마스킹 없음 | View 또는 RPC 방식으로 purchase gating 구현 필요 |
+| stale JWT role | token 재발급 전까지 role 변경 미반영 (최대 1시간) | session invalidation 전략 별도 검토 필요 |
+
+### advisory lock 상수
+```
+9182736455000001 → release_matured_payouts (pending payouts 전용)
+9182736455000002 → unblock_hold_payouts_on_connect (hold payouts 전용)
+```
+두 함수는 status 기준 상호배타 row set을 처리하므로 lock 분리 안전.
