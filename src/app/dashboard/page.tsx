@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/layout/nav'
 import { StatusBadge } from '@/components/ui/badge'
+import { ReviewForm } from '@/components/reviews/ReviewForm'
 
 type MyTask = {
   id: string; title: string; status: string
@@ -60,6 +61,8 @@ export default function DashboardPage() {
   const [payouts, setPayouts]   = useState<Payout[]>([])
   const [stripeConnected, setStripeConnected] = useState(false)
   const [isDemo, setIsDemo] = useState(false)
+  const [reviewedOrderIds, setReviewedOrderIds] = useState<Set<string>>(new Set())
+  const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -84,6 +87,20 @@ export default function DashboardPage() {
         const orderList = (orders as MyOrder[]) ?? []
         setMyTasks(taskList); setMyOrders(orderList)
         if (taskList.length === 0) { setMyTasks(DEMO_TASKS); setIsDemo(true) }
+
+        // paid 주문에 대한 리뷰 존재 여부 일괄 확인
+        const paidOrders = orderList.filter(o => o.status === 'paid')
+        if (paidOrders.length > 0) {
+          const reviewChecks = await Promise.all(
+            paidOrders.map(o =>
+              fetch(`/api/reviews?order_id=${o.id}`, {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              }).then(r => r.json()).then(d => ({ id: o.id, hasReview: !!d.data }))
+            )
+          )
+          const reviewed = new Set(reviewChecks.filter(r => r.hasReview).map(r => r.id))
+          setReviewedOrderIds(reviewed)
+        }
       }
       setLoading(false)
     }
@@ -180,14 +197,42 @@ export default function DashboardPage() {
               <h2 className="text-lg font-semibold text-gray-50">최근 주문</h2>
               <div className="mt-4 space-y-3">
                 {myOrders.map(o => (
-                  <div key={o.id} className="flex items-center justify-between rounded-2xl border border-gray-800 bg-gray-900 p-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-50">₩{o.amount.toLocaleString()}</p>
-                      <p className="mt-0.5 text-xs text-gray-500">
-                        {o.paid_at ? `결제 완료 · ${timeAgo(o.paid_at)}` : timeAgo(o.created_at)}
-                      </p>
+                  <div key={o.id} className="rounded-2xl border border-gray-800 bg-gray-900 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-50">₩{o.amount.toLocaleString()}</p>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {o.paid_at ? `결제 완료 · ${timeAgo(o.paid_at)}` : timeAgo(o.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {o.status === 'paid' && !reviewedOrderIds.has(o.id) && reviewingOrderId !== o.id && (
+                          <button
+                            onClick={() => setReviewingOrderId(o.id)}
+                            className="rounded-xl border border-amber-800/60 bg-amber-950/30 px-3 py-1 text-xs text-amber-400 hover:border-amber-700 transition-colors"
+                          >
+                            리뷰 작성
+                          </button>
+                        )}
+                        {o.status === 'paid' && reviewedOrderIds.has(o.id) && (
+                          <span className="text-xs text-gray-600">리뷰 완료 ✓</span>
+                        )}
+                        <StatusBadge status={o.status} />
+                      </div>
                     </div>
-                    <StatusBadge status={o.status} />
+
+                    {/* 인라인 리뷰 폼 */}
+                    {reviewingOrderId === o.id && (
+                      <div className="mt-4">
+                        <ReviewForm
+                          orderId={o.id}
+                          onSuccess={() => {
+                            setReviewedOrderIds(prev => new Set([...prev, o.id]))
+                            setReviewingOrderId(null)
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
