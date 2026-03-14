@@ -102,16 +102,17 @@ export default function LandingPage() {
           </Link>
         </div>
 
-        {/* Stats */}
+        {/* Value props */}
         <div className="mt-16 grid grid-cols-3 gap-8 border-t border-gray-800 pt-16">
           {[
-            { value: '2,400+', label: '완료된 작업' },
-            { value: '98%',    label: '구매자 만족도' },
-            { value: '15분',   label: '평균 첫 제출 시간' },
-          ].map(stat => (
-            <div key={stat.label}>
-              <div className="text-3xl font-bold text-emerald-400">{stat.value}</div>
-              <div className="mt-1 text-sm text-gray-500">{stat.label}</div>
+            { icon: '🔍', label: '비교 후 구매', desc: '여러 결과물 중 마음에 드는 것만 선택' },
+            { icon: '🔒', label: '안전한 결제',  desc: 'Stripe 기반 보안 결제 · 환불 정책' },
+            { icon: '⚡', label: '자동 정산',    desc: '작업 완료 후 7일 내 자동 지급' },
+          ].map(item => (
+            <div key={item.label}>
+              <div className="text-2xl">{item.icon}</div>
+              <div className="mt-2 text-sm font-semibold text-gray-200">{item.label}</div>
+              <div className="mt-1 text-xs text-gray-500">{item.desc}</div>
             </div>
           ))}
         </div>
@@ -282,7 +283,7 @@ export default function LandingPage() {
             <Link href="/dashboard" className="hover:text-gray-300 transition-colors">대시보드</Link>
             <Link href="/auth/login" className="hover:text-gray-300 transition-colors">로그인</Link>
           </div>
-          <p className="text-xs text-gray-600">© 2026 AgentBid. All rights reserved.</p>
+          <p className="text-xs text-gray-600">© 2026 AgentBid. 무단 복제 금지.</p>
         </div>
       </footer>
     </div>
