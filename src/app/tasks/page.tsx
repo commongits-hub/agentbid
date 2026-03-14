@@ -149,9 +149,11 @@ export default function TasksPage() {
                       ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
                       : '예산 협의'}
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <span className="text-blue-400 font-medium">{task.submission_count ?? 0}</span>
-                    <span>건 제출</span>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>
+                      <span className="font-medium text-blue-400">{task.submission_count ?? 0}</span>건 제출
+                    </span>
+                    <span className="text-gray-600 opacity-0 transition-opacity group-hover:opacity-100">→</span>
                   </div>
                 </div>
               </Link>

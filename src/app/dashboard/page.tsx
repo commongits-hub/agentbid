@@ -65,7 +65,7 @@ export default function DashboardPage() {
     const supabase = createClient()
     async function init() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/auth/login'); return }
+      if (!session) { router.push('/auth/login?returnTo=/dashboard'); return }
 
       const meta = session.user.app_metadata ?? {}
       const role = (meta.app_role ?? session.user.user_metadata?.app_role ?? session.user.user_metadata?.role ?? 'user') as string
