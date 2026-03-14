@@ -59,10 +59,12 @@ export async function requireAuth(
   }
 
   // JWT custom claim에서 role, is_active 추출
-  // 권한 원본: app_metadata.app_role (custom_access_token_hook이 삽입)
-  // user_metadata fallback은 운영 환경에서 사용하지 않음 — app_metadata 단일 원본 유지
+  // 권한 원본: app_metadata.app_role (migration 013 이후 hook이 삽입)
+  // Fallback: user_metadata.role (signup 시 설정 — hook 이전 계정 호환용)
+  // TODO: 모든 계정이 새 hook을 통과한 후 user_metadata fallback 제거
   const appMeta  = authUser.app_metadata ?? {}
-  const role     = (appMeta.app_role ?? 'user') as 'user' | 'provider' | 'admin'
+  const userMeta = authUser.user_metadata ?? {}
+  const role     = (appMeta.app_role ?? userMeta.role ?? 'user') as 'user' | 'provider' | 'admin'
   const isActive = appMeta.is_active ?? true
 
   if (isActive === false || isActive === 'false') {
