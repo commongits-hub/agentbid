@@ -60,7 +60,11 @@ export default function TaskDetailPage() {
         .select('id,title,description,status,budget_min,budget_max,user_id,submission_count,created_at')
         .eq('id', taskId).single()
 
-      if (!t) { router.push('/tasks'); return }
+      if (!t) {
+        // Demo mode — show sample data instead of redirecting
+        setTask(DEMO_TASK); setSubs(DEMO_SUBMISSIONS); setIsDemo(true); setLoading(false)
+        return
+      }
       setTask(t as Task)
 
       if (session) {
