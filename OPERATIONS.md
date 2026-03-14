@@ -233,3 +233,21 @@ order status = `refunded` 전환 시 `trg_cancel_payout_on_refund` 자동 실행
 
 `orders.paid → orders.refunded` 직행 허용 (Stripe `charge.refunded` 직접 수신 시)
 `orders.paid → orders.refund_requested → orders.refunded` 경유도 허용
+
+### Webhook Processing Lifecycle (migration 022 기준)
+
+```
+claim_webhook_event(id, type) → true: 처리 시작
+  ↓ 성공
+  UPDATE processed=true, processing=false    ← 앱 코드
+  ↓ 실패 (EXCEPTION catch)
+  UPDATE processing=false                    ← 앱 코드 (재시도 허용)
+  ↓ 크래시 (프로세스 강제 종료)
+  reset_stale_webhook_claims(10)             ← 수동 또는 cron
+```
+
+**stale lock 복구:** `SELECT reset_stale_webhook_claims();` — 서버 재배포 직후 실행 권장
+
+**TODO (non-urgent):** 앱 코드 완료/실패 경로가 분산되면 DB 함수로 묶기
+- `mark_webhook_processed(p_id text)` — `processed=true, processing=false`
+- `release_webhook_claim(p_id text)` — `processing=false` (에러 시 재시도)
