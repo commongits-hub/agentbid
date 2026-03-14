@@ -198,11 +198,35 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  * 결제 실패 → orders.status = 'cancelled'
  */
 async function handlePaymentFailed(pi: Stripe.PaymentIntent) {
-  await supabaseAdmin
+  // 1) 일반 경로: order.stripe_payment_intent_id 로 직접 매칭
+  const { data: matchedByPi } = await supabaseAdmin
     .from('orders')
     .update({ status: 'cancelled' })
     .eq('stripe_payment_intent_id', pi.id)
     .eq('status', 'pending')
+    .select('id')
+
+  if (matchedByPi && matchedByPi.length > 0) return
+
+  // 2) fallback: checkout_session_id 기반 매칭
+  //    (order 생성 시점에 payment_intent_id가 비어있을 수 있음)
+  try {
+    const sessions = await stripe.checkout.sessions.list({
+      payment_intent: pi.id,
+      limit: 1,
+    })
+
+    const sessionId = sessions.data[0]?.id
+    if (!sessionId) return
+
+    await supabaseAdmin
+      .from('orders')
+      .update({ status: 'cancelled', stripe_payment_intent_id: pi.id })
+      .eq('stripe_checkout_session_id', sessionId)
+      .eq('status', 'pending')
+  } catch {
+    // Stripe 조회 실패 시 다음 webhook 재시도에 맡김
+  }
 }
 
 /**
