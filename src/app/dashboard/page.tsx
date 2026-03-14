@@ -1,365 +1,293 @@
 'use client'
 
-// src/app/dashboard/page.tsx
-// Dashboard — app_role 기준으로 owner/provider 뷰 분기
-//
-// [owner (user role)]
-//   - 내 Task 목록 (전체 status)
-//   - 최근 주문 내역
-//
-// [provider]
-//   - Stripe Connect 연결 상태
-//   - Payout 목록 (pending / hold / released / transferred / cancelled)
-
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-
-// ─── Types ────────────────────────────────────────────────
+import { Nav } from '@/components/layout/nav'
+import { StatusBadge } from '@/components/ui/badge'
 
 type MyTask = {
-  id: string
-  title: string
-  status: string
-  budget_min: number | null
-  budget_max: number | null
-  submission_count: number
-  created_at: string
+  id: string; title: string; status: string
+  budget_min: number | null; budget_max: number | null
+  submission_count: number; created_at: string
 }
-
 type MyOrder = {
-  id: string
-  task_id: string
-  submission_id: string
-  amount: number
-  status: string
-  paid_at: string | null
-  created_at: string
+  id: string; task_id: string; amount: number
+  status: string; paid_at: string | null; created_at: string
 }
-
 type Payout = {
-  id: string
-  amount: number
+  id: string; amount: number
   status: 'pending' | 'hold' | 'released' | 'transferred' | 'cancelled'
-  release_at: string
-  transferred_at: string | null
-  stripe_transfer_id: string | null
-  created_at: string
-  orders: {
-    id: string
-    amount: number
-    paid_at: string | null
-    tasks: { id: string; title: string } | null
-  } | null
+  release_at: string; transferred_at: string | null
+  orders: { amount: number; paid_at: string | null; tasks: { title: string } | null } | null
 }
 
-// ─── Status badge helpers ──────────────────────────────────
+// Demo data for empty states
+const DEMO_TASKS: MyTask[] = [
+  { id: 'd1', title: '모바일 앱 아이콘 디자인', status: 'open', budget_min: 50000, budget_max: 80000, submission_count: 4, created_at: new Date(Date.now()-3600000).toISOString() },
+  { id: 'd2', title: '신제품 론칭 보도자료 작성', status: 'completed', budget_min: 80000, budget_max: null, submission_count: 7, created_at: new Date(Date.now()-86400000).toISOString() },
+  { id: 'd3', title: '월간 매출 데이터 시각화', status: 'reviewing', budget_min: 100000, budget_max: 150000, submission_count: 2, created_at: new Date(Date.now()-172800000).toISOString() },
+]
+const DEMO_PAYOUTS: Payout[] = [
+  { id: 'p1', amount: 80000, status: 'transferred', release_at: '', transferred_at: new Date(Date.now()-86400000).toISOString(), orders: { amount: 100000, paid_at: new Date(Date.now()-86400000).toISOString(), tasks: { title: '앱 아이콘 디자인' } } },
+  { id: 'p2', amount: 48000, status: 'released', release_at: '', transferred_at: null, orders: { amount: 60000, paid_at: new Date(Date.now()-3600000).toISOString(), tasks: { title: '보도자료 작성' } } },
+  { id: 'p3', amount: 32000, status: 'pending', release_at: new Date(Date.now()+86400000*5).toISOString(), transferred_at: null, orders: { amount: 40000, paid_at: new Date().toISOString(), tasks: { title: '마케팅 카피 세트' } } },
+]
 
-const TASK_STATUS_STYLE: Record<string, string> = {
-  draft:     'bg-gray-100 text-gray-500',
-  open:      'bg-green-100 text-green-700',
-  reviewing: 'bg-yellow-100 text-yellow-700',
-  selected:  'bg-blue-100 text-blue-700',
-  completed: 'bg-violet-100 text-violet-700',
-  cancelled: 'bg-red-100 text-red-500',
-  expired:   'bg-red-50 text-red-400',
-  disputed:  'bg-orange-100 text-orange-600',
+function timeAgo(iso: string) {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000)
+  if (h < 1) return '방금'; if (h < 24) return `${h}시간 전`
+  return `${Math.floor(h/24)}일 전`
 }
 
-const PAYOUT_STATUS_STYLE: Record<string, string> = {
-  pending:     'bg-yellow-100 text-yellow-700',
-  hold:        'bg-orange-100 text-orange-600',
-  released:    'bg-blue-100 text-blue-700',
-  transferred: 'bg-green-100 text-green-700',
-  cancelled:   'bg-gray-100 text-gray-500',
+function StatCard({ label, value, sub, accent = false }: { label: string; value: string; sub?: string; accent?: boolean }) {
+  return (
+    <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className={`mt-1 text-2xl font-bold ${accent ? 'text-emerald-400' : 'text-gray-50'}`}>{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-gray-600">{sub}</p>}
+    </div>
+  )
 }
-
-const PAYOUT_STATUS_LABEL: Record<string, string> = {
-  pending:     '대기중 (7일)',
-  hold:        '보류',
-  released:    '정산 가능',
-  transferred: '지급 완료',
-  cancelled:   '취소됨',
-}
-
-const ORDER_STATUS_STYLE: Record<string, string> = {
-  pending:          'bg-yellow-100 text-yellow-700',
-  paid:             'bg-green-100 text-green-700',
-  failed:           'bg-red-100 text-red-500',
-  cancelled:        'bg-gray-100 text-gray-500',
-  refund_requested: 'bg-orange-100 text-orange-600',
-  refunded:         'bg-red-50 text-red-400',
-}
-
-// ─── Component ─────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const router  = useRouter()
-  const [appRole, setAppRole]   = useState<string | null>(null)
-  const [token, setToken]       = useState<string | null>(null)
-  const [userId, setUserId]     = useState<string | null>(null)
-  const [loading, setLoading]   = useState(true)
-
-  // owner state
-  const [myTasks, setMyTasks]     = useState<MyTask[]>([])
-  const [myOrders, setMyOrders]   = useState<MyOrder[]>([])
-
-  // provider state
-  const [payouts, setPayouts]           = useState<Payout[]>([])
-  const [stripeConnected, setStripeConnected] = useState<boolean>(false)
+  const router = useRouter()
+  const [appRole, setAppRole] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [myTasks, setMyTasks]   = useState<MyTask[]>([])
+  const [myOrders, setMyOrders] = useState<MyOrder[]>([])
+  const [payouts, setPayouts]   = useState<Payout[]>([])
+  const [stripeConnected, setStripeConnected] = useState(false)
+  const [isDemo, setIsDemo] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
-
     async function init() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/auth/login'); return }
 
-      const meta  = session.user.app_metadata ?? session.user.user_metadata ?? {}
-      const role  = (meta.app_role ?? session.user.user_metadata?.app_role ?? session.user.user_metadata?.role ?? 'user') as string
-
-      setToken(session.access_token)
-      setUserId(session.user.id)
+      const meta = session.user.app_metadata ?? {}
+      const role = (meta.app_role ?? session.user.user_metadata?.app_role ?? session.user.user_metadata?.role ?? 'user') as string
       setAppRole(role)
 
       if (role === 'provider') {
-        await loadProviderData(session.access_token)
+        const res = await fetch('/api/payouts', { headers: { Authorization: `Bearer ${session.access_token}` } })
+        const data = await res.json()
+        const list = data.data ?? []
+        setPayouts(list); setStripeConnected(data.meta?.stripe_connected ?? false)
+        if (list.length === 0) { setPayouts(DEMO_PAYOUTS); setIsDemo(true) }
       } else {
-        await loadOwnerData(session.user.id, supabase)
+        const { data: tasks } = await supabase.from('tasks').select('id,title,status,budget_min,budget_max,submission_count,created_at').eq('user_id', session.user.id).is('soft_deleted_at', null).order('created_at',{ascending:false}).limit(20)
+        const { data: orders } = await supabase.from('orders').select('id,task_id,amount,status,paid_at,created_at').eq('user_id', session.user.id).order('created_at',{ascending:false}).limit(10)
+        const taskList = (tasks as MyTask[]) ?? []
+        const orderList = (orders as MyOrder[]) ?? []
+        setMyTasks(taskList); setMyOrders(orderList)
+        if (taskList.length === 0) { setMyTasks(DEMO_TASKS); setIsDemo(true) }
       }
-
       setLoading(false)
     }
-
     init()
   }, [])
 
-  // ── owner data ─────────────────────────────────────────────
-  async function loadOwnerData(uid: string, supabase: ReturnType<typeof createClient>) {
-    // 내 task 목록 (전체 상태)
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('id, title, status, budget_min, budget_max, submission_count, created_at')
-      .eq('user_id', uid)
-      .is('soft_deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(20)
-
-    setMyTasks((tasks as MyTask[]) ?? [])
-
-    // 최근 주문 내역
-    const { data: orders } = await supabase
-      .from('orders')
-      .select('id, task_id, submission_id, amount, status, paid_at, created_at')
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false })
-      .limit(10)
-
-    setMyOrders((orders as MyOrder[]) ?? [])
-  }
-
-  // ── provider data ──────────────────────────────────────────
-  async function loadProviderData(accessToken: string) {
-    const res = await fetch('/api/payouts', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-    const data = await res.json()
-
-    if (res.ok) {
-      setPayouts(data.data ?? [])
-      setStripeConnected(data.meta?.stripe_connected ?? false)
-    }
-  }
-
-  if (loading) return <main className="p-8"><p>불러오는 중...</p></main>
-
-  // ──────────────────────────────────────────────────────────
-  // OWNER VIEW
-  // ──────────────────────────────────────────────────────────
-  if (appRole !== 'provider') {
+  if (loading) {
     return (
-      <main className="mx-auto max-w-2xl p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">대시보드</h1>
-          <Link
-            href="/tasks/new"
-            className="rounded bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-700"
-          >
-            + Task 등록
-          </Link>
+      <div className="min-h-screen bg-[#030712]">
+        <Nav />
+        <div className="mx-auto max-w-6xl px-4 py-10">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[1,2,3].map(i => <div key={i} className="h-28 animate-pulse rounded-2xl bg-gray-900" />)}
+          </div>
         </div>
-
-        {/* 내 Task 목록 */}
-        <section className="mb-10">
-          <h2 className="mb-3 text-lg font-semibold">내 Task</h2>
-
-          {myTasks.length === 0 ? (
-            <p className="text-sm text-gray-500">등록한 Task가 없습니다.</p>
-          ) : (
-            <ul className="space-y-3">
-              {myTasks.map(t => (
-                <li key={t.id} className="rounded border p-4 hover:bg-gray-50">
-                  <Link href={`/tasks/${t.id}`} className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate font-medium">{t.title}</p>
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        {new Date(t.created_at).toLocaleDateString('ko-KR')}
-                        {' · '}제출 {t.submission_count}건
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {(t.budget_min || t.budget_max) && (
-                        <span className="text-sm text-violet-600">
-                          {t.budget_min?.toLocaleString()}원~
-                        </span>
-                      )}
-                      <span className={`rounded px-2 py-0.5 text-xs font-medium ${TASK_STATUS_STYLE[t.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                        {t.status}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* 주문 내역 */}
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">최근 주문</h2>
-
-          {myOrders.length === 0 ? (
-            <p className="text-sm text-gray-500">주문 내역이 없습니다.</p>
-          ) : (
-            <ul className="space-y-3">
-              {myOrders.map(o => (
-                <li key={o.id} className="rounded border p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-700">
-                        {o.amount.toLocaleString()}원
-                      </p>
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        {o.paid_at
-                          ? `결제 완료 · ${new Date(o.paid_at).toLocaleDateString('ko-KR')}`
-                          : new Date(o.created_at).toLocaleDateString('ko-KR')}
-                      </p>
-                    </div>
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_STYLE[o.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {o.status}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </main>
+      </div>
     )
   }
 
-  // ──────────────────────────────────────────────────────────
-  // PROVIDER VIEW
-  // ──────────────────────────────────────────────────────────
-  const totalPending    = payouts.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0)
-  const totalReleased   = payouts.filter(p => p.status === 'released').reduce((s, p) => s + p.amount, 0)
-  const totalTransferred = payouts.filter(p => p.status === 'transferred').reduce((s, p) => s + p.amount, 0)
+  /* ── OWNER VIEW ──────────────────────────────────────────── */
+  if (appRole !== 'provider') {
+    const openCount = myTasks.filter(t => t.status === 'open').length
+    const doneCount = myTasks.filter(t => t.status === 'completed').length
+    const paidTotal = myOrders.filter(o => o.status === 'paid').reduce((s, o) => s + o.amount, 0)
+
+    return (
+      <div className="min-h-screen bg-[#030712]">
+        <Nav />
+        <main className="mx-auto max-w-6xl px-4 py-10">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-50">대시보드</h1>
+              <p className="mt-0.5 text-sm text-gray-500">내 작업 현황을 확인하세요</p>
+            </div>
+            <Link href="/tasks/new" className="rounded-2xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors">
+              + 작업 등록
+            </Link>
+          </div>
+
+          {isDemo && (
+            <div className="mt-4 rounded-2xl border border-amber-800/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-400">
+              샘플 데이터로 표시 중입니다. 작업을 등록하면 실제 데이터가 표시됩니다.
+            </div>
+          )}
+
+          {/* Stats */}
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <StatCard label="진행 중 작업" value={`${openCount}건`} />
+            <StatCard label="완료된 작업" value={`${doneCount}건`} accent />
+            <StatCard label="총 결제 금액" value={`₩${paidTotal.toLocaleString()}`} sub="플랫폼 수수료 20% 포함" />
+          </div>
+
+          {/* Tasks */}
+          <section className="mt-10">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-50">내 작업</h2>
+              <Link href="/tasks" className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">마켓 보기 →</Link>
+            </div>
+            {myTasks.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-gray-800 p-10 text-center">
+                <p className="text-sm text-gray-500">아직 등록한 작업이 없습니다.</p>
+                <Link href="/tasks/new" className="mt-3 inline-block text-sm text-emerald-400 hover:underline">첫 작업 등록하기 →</Link>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {myTasks.map(t => (
+                  <Link
+                    key={t.id}
+                    href={t.id.startsWith('d') ? '#' : `/tasks/${t.id}`}
+                    className="flex items-center justify-between gap-4 rounded-2xl border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700 hover:bg-gray-800/80"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-50">{t.title}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {timeAgo(t.created_at)} · 제출 <span className="text-blue-400 font-medium">{t.submission_count}</span>건
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      {t.budget_min && (
+                        <span className="text-xs text-gray-400">₩{t.budget_min.toLocaleString()}{t.budget_max ? `~${t.budget_max.toLocaleString()}` : '~'}</span>
+                      )}
+                      <StatusBadge status={t.status} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Orders */}
+          {myOrders.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-lg font-semibold text-gray-50">최근 주문</h2>
+              <div className="mt-4 space-y-3">
+                {myOrders.map(o => (
+                  <div key={o.id} className="flex items-center justify-between rounded-2xl border border-gray-800 bg-gray-900 p-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-50">₩{o.amount.toLocaleString()}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {o.paid_at ? `결제 완료 · ${timeAgo(o.paid_at)}` : timeAgo(o.created_at)}
+                      </p>
+                    </div>
+                    <StatusBadge status={o.status} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </main>
+      </div>
+    )
+  }
+
+  /* ── PROVIDER VIEW ───────────────────────────────────────── */
+  const totalPending    = payouts.filter(p=>p.status==='pending').reduce((s,p)=>s+p.amount,0)
+  const totalReleased   = payouts.filter(p=>p.status==='released').reduce((s,p)=>s+p.amount,0)
+  const totalTransferred = payouts.filter(p=>p.status==='transferred').reduce((s,p)=>s+p.amount,0)
+
+  const payoutStatusMeta: Record<string, { label: string; cls: string }> = {
+    pending:     { label: `대기 중 (${new Date().toLocaleDateString('ko-KR')} 기준 7일 후)`, cls: 'text-amber-400' },
+    hold:        { label: '보류 — Stripe 계좌 연결 필요',  cls: 'text-orange-400' },
+    released:    { label: '정산 가능 — 지급 대기 중',       cls: 'text-blue-400' },
+    transferred: { label: '지급 완료',                      cls: 'text-emerald-400' },
+    cancelled:   { label: '환불로 인해 취소됨',              cls: 'text-gray-500' },
+  }
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Provider 대시보드</h1>
+    <div className="min-h-screen bg-[#030712]">
+      <Nav />
+      <main className="mx-auto max-w-6xl px-4 py-10">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-50">Provider 대시보드</h1>
+            <p className="mt-0.5 text-sm text-gray-500">정산 및 수익 현황</p>
+          </div>
+          {stripeConnected ? (
+            <span className="flex items-center gap-2 rounded-2xl border border-emerald-800 bg-emerald-950/50 px-4 py-2 text-sm text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Stripe 연결됨
+            </span>
+          ) : (
+            <Link href="/onboarding/stripe" className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-gray-950 hover:bg-amber-400 transition-colors">
+              Stripe 연결하기
+            </Link>
+          )}
+        </div>
+
         {!stripeConnected && (
-          <Link
-            href="/onboarding/stripe"
-            className="rounded bg-orange-500 px-4 py-2 text-sm text-white hover:bg-orange-600"
-          >
-            Stripe 연결하기
-          </Link>
+          <div className="mt-4 rounded-2xl border border-amber-800/50 bg-amber-950/30 px-5 py-4">
+            <p className="text-sm font-medium text-amber-400">Stripe 계좌 미연결</p>
+            <p className="mt-1 text-xs text-amber-600">정산 가능 상태가 되어도 지급이 보류됩니다. 지금 바로 Stripe 계좌를 연결하세요.</p>
+          </div>
         )}
-        {stripeConnected && (
-          <span className="rounded bg-green-100 px-3 py-1.5 text-sm text-green-700">
-            ✓ Stripe 연결됨
-          </span>
+
+        {isDemo && (
+          <div className="mt-4 rounded-2xl border border-amber-800/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-400">
+            샘플 데이터로 표시 중입니다. 작업을 완료하면 실제 정산 내역이 표시됩니다.
+          </div>
         )}
-      </div>
 
-      {/* Stripe 미연결 경고 */}
-      {!stripeConnected && (
-        <div className="mb-6 rounded border border-orange-200 bg-orange-50 p-4 text-sm text-orange-700">
-          <p className="font-medium">Stripe 계좌가 연결되지 않았습니다.</p>
-          <p className="mt-1">정산 가능 상태가 되어도 지급이 보류됩니다. Stripe 계좌를 연결해주세요.</p>
+        {/* Stats */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <StatCard label="대기 중" value={`₩${totalPending.toLocaleString()}`} sub="구매 후 7일 정산 대기" />
+          <StatCard label="정산 가능" value={`₩${totalReleased.toLocaleString()}`} sub="지급 처리 대기 중" />
+          <StatCard label="지급 완료" value={`₩${totalTransferred.toLocaleString()}`} sub="계좌 이체 완료" accent />
         </div>
-      )}
 
-      {/* 요약 카드 */}
-      <div className="mb-8 grid grid-cols-3 gap-4">
-        <div className="rounded border p-4 text-center">
-          <p className="text-xs text-gray-500">대기중</p>
-          <p className="mt-1 text-lg font-bold text-yellow-600">{totalPending.toLocaleString()}원</p>
-        </div>
-        <div className="rounded border p-4 text-center">
-          <p className="text-xs text-gray-500">정산 가능</p>
-          <p className="mt-1 text-lg font-bold text-blue-600">{totalReleased.toLocaleString()}원</p>
-        </div>
-        <div className="rounded border p-4 text-center">
-          <p className="text-xs text-gray-500">지급 완료</p>
-          <p className="mt-1 text-lg font-bold text-green-600">{totalTransferred.toLocaleString()}원</p>
-        </div>
-      </div>
-
-      {/* Payout 목록 */}
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">정산 내역</h2>
-
-        {payouts.length === 0 ? (
-          <p className="text-sm text-gray-500">정산 내역이 없습니다.</p>
-        ) : (
-          <ul className="space-y-3">
-            {payouts.map(p => {
-              const taskTitle = p.orders?.tasks?.title ?? '(작업 없음)'
-              const paidAt    = p.orders?.paid_at
-              const grossAmt  = p.orders?.amount ?? 0
-
-              return (
-                <li key={p.id} className="rounded border p-4">
+        {/* Payout list */}
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold text-gray-50">정산 내역</h2>
+          {payouts.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-gray-800 p-10 text-center">
+              <p className="text-sm text-gray-500">아직 정산 내역이 없습니다.</p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {payouts.map(p => (
+                <div key={p.id} className="rounded-2xl border border-gray-800 bg-gray-900 p-5">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium">{taskTitle}</p>
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        총 결제액 {grossAmt.toLocaleString()}원
-                        {' · '}정산액 <span className="font-medium text-gray-600">{p.amount.toLocaleString()}원</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-50">
+                        {p.orders?.tasks?.title ?? '(작업 없음)'}
                       </p>
-                      <div className="mt-1 text-xs text-gray-400">
-                        {p.status === 'pending' && (
-                          <span>정산 가능일: {new Date(p.release_at).toLocaleDateString('ko-KR')}</span>
-                        )}
-                        {p.status === 'hold' && (
-                          <span className="text-orange-600">보류 — Stripe 계좌 연결 필요</span>
-                        )}
-                        {p.status === 'released' && (
-                          <span className="text-blue-600">지급 대기 중</span>
-                        )}
-                        {p.status === 'transferred' && p.transferred_at && (
-                          <span>지급일: {new Date(p.transferred_at).toLocaleDateString('ko-KR')}</span>
-                        )}
-                        {p.status === 'cancelled' && (
-                          <span className="text-gray-400">환불로 인해 취소됨</span>
-                        )}
-                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        총 결제액 ₩{(p.orders?.amount ?? 0).toLocaleString()} →{' '}
+                        <span className="font-medium text-gray-300">정산액 ₩{p.amount.toLocaleString()}</span>
+                        <span className="ml-1 text-gray-600">(플랫폼 수수료 20%)</span>
+                      </p>
+                      <p className={`mt-1 text-xs ${payoutStatusMeta[p.status]?.cls ?? 'text-gray-500'}`}>
+                        {p.status === 'pending' && `정산 가능일: ${new Date(p.release_at).toLocaleDateString('ko-KR')}`}
+                        {p.status !== 'pending' && payoutStatusMeta[p.status]?.label}
+                        {p.status === 'transferred' && p.transferred_at && ` · ${new Date(p.transferred_at).toLocaleDateString('ko-KR')}`}
+                      </p>
                     </div>
-
-                    <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${PAYOUT_STATUS_STYLE[p.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {PAYOUT_STATUS_LABEL[p.status] ?? p.status}
-                    </span>
+                    <StatusBadge status={p.status} />
                   </div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
-    </main>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
   )
 }

@@ -1,10 +1,8 @@
 'use client'
 
-// src/app/auth/login/page.tsx
-// 로그인 페이지 — email/password 기반
-
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
@@ -18,51 +16,69 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      router.push('/dashboard')
-    }
+    const { error } = await createClient().auth.signInWithPassword({ email, password })
+    if (error) { setError(error.message); setLoading(false) }
+    else router.push('/dashboard')
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <form onSubmit={handleLogin} className="w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-bold">로그인</h1>
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-        <input
-          type="email"
-          placeholder="이메일"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          required
-          className="w-full rounded border px-3 py-2"
-        />
-        <input
-          type="password"
-          placeholder="비밀번호"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          required
-          className="w-full rounded border px-3 py-2"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-        >
-          {loading ? '로그인 중...' : '로그인'}
-        </button>
-        <p className="text-center text-sm">
+    <div className="flex min-h-screen items-center justify-center bg-[#030712] px-4">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <Link href="/" className="text-xl font-bold text-gray-50">
+            Agent<span className="text-emerald-400">Bid</span>
+          </Link>
+          <p className="mt-2 text-sm text-gray-500">계정에 로그인하세요</p>
+        </div>
+
+        <form onSubmit={handleLogin} className="rounded-2xl border border-gray-800 bg-gray-900 p-8 space-y-5">
+          {error && (
+            <div className="rounded-xl border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-400">이메일</label>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-gray-50 placeholder-gray-600 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-400">비밀번호</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-gray-50 placeholder-gray-600 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-2xl bg-emerald-500 py-2.5 text-sm font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
+          >
+            {loading ? '로그인 중...' : '로그인'}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-sm text-gray-500">
           계정이 없으신가요?{' '}
-          <a href="/auth/signup" className="underline">회원가입</a>
+          <Link href="/auth/signup" className="text-emerald-400 hover:underline">
+            회원가입
+          </Link>
         </p>
-      </form>
-    </main>
+      </div>
+    </div>
   )
 }
