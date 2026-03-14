@@ -8,11 +8,13 @@ import type { SubmissionRow, SubmissionPreview, SubmissionFull } from '@/types'
  * submission row를 호출자 권한에 따라 필터링
  *
  * @param row      DB에서 가져온 원본 row
- * @param callerId 요청자의 user_id (auth.uid())
- * @param taskOwnerId task를 등록한 user_id
+ * @param callerId    ⚠️ 현재 미사용 — 향후 provider 본인 접근 제어 등에 활용 가능
+ * @param taskOwnerId ⚠️ 현재 미사용 — 향후 owner 전용 추가 필드 노출 시 사용 가능
  * @param hasPaid  callerId가 이 submission에 대한 paid order를 보유하는지
  *
- * @returns SubmissionPreview (미구매) 또는 SubmissionFull (구매 완료)
+ * 현재 접근 제어 기준: hasPaid 단일 조건
+ * - true  → SubmissionFull 반환 (content_text, file_path 포함)
+ * - false → SubmissionPreview 반환 (미리보기만)
  */
 export function shapeSubmission(
   row: SubmissionRow,

@@ -49,20 +49,30 @@ export default function TaskDetailPage() {
   const [isDemo, setIsDemo]       = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
+  const [taskError, setTaskError] = useState<'not_found' | 'server_error' | null>(null)
+
   useEffect(() => {
     const supabase = createClient()
     async function load() {
       const { data: { session } } = await supabase.auth.getSession()
       setMyUserId(session?.user.id ?? null)
 
-      const { data: t } = await supabase
+      // demo-* route: 명시적 데모 ID → 실제 DB 조회 없이 데모 데이터 표시
+      if (taskId.startsWith('demo')) {
+        setTask(DEMO_TASK); setSubs(DEMO_SUBMISSIONS); setIsDemo(true); setLoading(false)
+        return
+      }
+
+      const { data: t, error: fetchError } = await supabase
         .from('tasks')
         .select('id,title,description,status,budget_min,budget_max,user_id,submission_count,created_at')
         .eq('id', taskId).single()
 
-      if (!t) {
-        // Demo mode — show sample data instead of redirecting
-        setTask(DEMO_TASK); setSubs(DEMO_SUBMISSIONS); setIsDemo(true); setLoading(false)
+      if (fetchError || !t) {
+        // 404 or network error → 에러 상태 표시 (데모 데이터 아님)
+        const code = fetchError?.code
+        setTaskError(code === 'PGRST116' ? 'not_found' : 'server_error')
+        setLoading(false)
         return
       }
       setTask(t as Task)
@@ -78,11 +88,6 @@ export default function TaskDetailPage() {
     }
     load()
   }, [taskId])
-
-  // Show demo if no real task (e.g. demo ID)
-  useEffect(() => {
-    if (!loading && !task) { setTask(DEMO_TASK); setSubs(DEMO_SUBMISSIONS); setIsDemo(true); setLoading(false) }
-  }, [loading, task])
 
   async function handleCheckout(submissionId: string) {
     setSelecting(submissionId)
@@ -124,8 +129,29 @@ export default function TaskDetailPage() {
       </div>
     )
   }
-  if (!task) return null
+  if (taskError) {
+    return (
+      <div className="min-h-screen bg-[#030712]">
+        <Nav />
+        <div className="mx-auto max-w-lg px-4 py-20 text-center">
+          <p className="text-4xl">{taskError === 'not_found' ? '🔍' : '⚠️'}</p>
+          <h1 className="mt-4 text-xl font-bold text-gray-50">
+            {taskError === 'not_found' ? '작업을 찾을 수 없습니다' : '오류가 발생했습니다'}
+          </h1>
+          <p className="mt-2 text-sm text-gray-500">
+            {taskError === 'not_found'
+              ? '삭제됐거나 존재하지 않는 작업입니다.'
+              : '잠시 후 다시 시도해주세요.'}
+          </p>
+          <Link href="/tasks" className="mt-6 inline-block rounded-2xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors">
+            마켓으로 돌아가기
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
+  if (!task) return null
   const isOwner    = myUserId === task.user_id
   const isLoggedIn = !!myUserId
   const canBuy     = isOwner && task.status === 'open'

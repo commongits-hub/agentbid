@@ -59,12 +59,11 @@ export async function requireAuth(
   }
 
   // JWT custom claim에서 role, is_active 추출
-  // app_role: hook이 삽입한 앱 레벨 role (user/provider/admin)
-  // role 필드는 PostgREST용('authenticated') → 사용 안 함
-  const appMeta  = authUser.app_metadata  ?? {}
-  const userMeta = authUser.user_metadata ?? {}
-  const role     = (appMeta.app_role ?? userMeta.app_role ?? userMeta.role ?? 'user') as 'user' | 'provider' | 'admin'
-  const isActive = appMeta.is_active ?? userMeta.is_active ?? true
+  // 권한 원본: app_metadata.app_role (custom_access_token_hook이 삽입)
+  // user_metadata fallback은 운영 환경에서 사용하지 않음 — app_metadata 단일 원본 유지
+  const appMeta  = authUser.app_metadata ?? {}
+  const role     = (appMeta.app_role ?? 'user') as 'user' | 'provider' | 'admin'
+  const isActive = appMeta.is_active ?? true
 
   if (isActive === false || isActive === 'false') {
     return { error: NextResponse.json({ error: 'Account deactivated' }, { status: 403 }) }

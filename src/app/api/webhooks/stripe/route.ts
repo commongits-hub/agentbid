@@ -6,7 +6,7 @@
 // ⚠️ 보안:
 //   - stripe-signature 헤더 검증 필수
 //   - 모든 DB 업데이트는 supabaseAdmin (service_role) 사용
-//   - stripe_webhook_events 테이블로 중복 처리 방지
+//   - claim_webhook_event() RPC로 atomic 중복 처리 방지 (processing 플래그 기반)
 
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
@@ -19,7 +19,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
 export async function POST(req: NextRequest) {
-  const body = await req.text()
+  const body      = await req.text()
   const signature = req.headers.get('stripe-signature')
 
   if (!signature) {
@@ -35,25 +35,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  // 2. 중복 처리 방지 (stripe_webhook_events 테이블)
-  const { data: existingEvent } = await supabaseAdmin
-    .from('stripe_webhook_events')
-    .select('id, processed')
-    .eq('id', event.id)
-    .single()
+  // 2. Atomic event claim (race condition 방지)
+  //    claim_webhook_event():
+  //      - 신규 이벤트          → INSERT + processing=true  → true
+  //      - 재시도 (processed=false, processing=false) → UPDATE → true
+  //      - 동시 처리 중          → processing=true         → false (skip)
+  //      - 이미 완료            → processed=true           → false (skip)
+  const { data: claimed, error: claimError } = await supabaseAdmin
+    .rpc('claim_webhook_event', { p_id: event.id, p_type: event.type })
 
-  if (existingEvent?.processed) {
-    // 이미 처리된 이벤트 → 200 반환 (Stripe 재전송 방지)
+  if (claimError) {
+    console.error('claim_webhook_event failed:', claimError.message)
+    return NextResponse.json({ error: 'DB error' }, { status: 500 })
+  }
+
+  if (!claimed) {
     return NextResponse.json({ received: true, duplicate: true })
   }
 
-  // 3. 이벤트 기록 (처리 시작)
-  await supabaseAdmin.from('stripe_webhook_events').upsert({
-    id: event.id,
-    type: event.type,
-    processed: false,
-  })
-
+  // 3. 이벤트 처리
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -73,32 +73,38 @@ export async function POST(req: NextRequest) {
         break
       }
       default:
-        // 처리하지 않는 이벤트 타입 → 무시
         break
     }
 
-    // 4. 처리 완료 표시
+    // 4. 처리 완료 표시 (processing=false, processed=true)
     await supabaseAdmin
       .from('stripe_webhook_events')
-      .update({ processed: true })
+      .update({ processed: true, processing: false })
       .eq('id', event.id)
 
     return NextResponse.json({ received: true })
+
   } catch (err: any) {
     console.error(`Webhook handler error [${event.type}]:`, err.message)
-    // processed = false 유지 → 재시도 허용
+    // processing=false 해제 → Stripe 재전송 시 재시도 허용
+    await supabaseAdmin
+      .from('stripe_webhook_events')
+      .update({ processing: false })
+      .eq('id', event.id)
     return NextResponse.json({ error: 'Handler failed' }, { status: 500 })
   }
 }
 
 /**
  * checkout.session.completed
- * Stripe 결제 완료 → orders.status = 'paid', submission.status = 'purchased'
- * payout 생성은 DB 트리거(trg_create_payout_on_paid)가 처리
  *
- * 매칭 순서:
- *   1차) stripe_checkout_session_id = session.id
- *   2차) submission_id + status='pending' (session ID 불일치 fallback)
+ * 멱등성 보장: order가 이미 'paid'이면 조용히 리턴 (재실행 가드).
+ * 순서:
+ *   1. order 조회 (session ID 우선, fallback: submission_id)
+ *   2. submission → selected
+ *   3. task → completed
+ *   4. order  → paid  (트리거 trg_create_payout_on_paid 발동)
+ *   5. submission → purchased (원본 공개)
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const { task_id, submission_id, user_id } = session.metadata ?? {}
@@ -116,30 +122,37 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     throw new Error('No payment_intent in checkout session')
   }
 
-  // ── 1. order 조회 (session ID 우선, fallback: submission_id) ──────────────
+  // ── 1. order 조회 ──────────────────────────────────────────────────────────
   let orderId: string | null = null
 
   const { data: orderBySession } = await supabaseAdmin
     .from('orders')
-    .select('id')
+    .select('id, status')
     .eq('stripe_checkout_session_id', session.id)
-    .eq('status', 'pending')
     .maybeSingle()
 
-  orderId = orderBySession?.id ?? null
+  // 재실행 가드: 이미 paid이면 중복 처리 없이 종료
+  if (orderBySession?.status === 'paid') {
+    console.log(`[webhook] checkout.session.completed already processed — order ${orderBySession.id}`)
+    return
+  }
+
+  orderId = orderBySession?.status === 'pending' ? orderBySession.id : null
 
   if (!orderId) {
-    // Fallback: submission_id 기준 매칭 (UNIQUE 보장됨)
     const { data: orderBySubmission } = await supabaseAdmin
       .from('orders')
-      .select('id')
+      .select('id, status')
       .eq('submission_id', submission_id)
-      .eq('status', 'pending')
       .maybeSingle()
 
-    orderId = orderBySubmission?.id ?? null
+    if (orderBySubmission?.status === 'paid') {
+      console.log(`[webhook] already paid — order ${orderBySubmission.id}`)
+      return
+    }
 
-    // session ID 정규화 (이후 중복 처리 방지용)
+    orderId = orderBySubmission?.status === 'pending' ? orderBySubmission.id : null
+
     if (orderId) {
       await supabaseAdmin
         .from('orders')
@@ -154,27 +167,35 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     )
   }
 
-  // ── 2. submission: submitted → selected ────────────────────────────────────
-  // ⚠️ tasks.selected_submission_id 제약이 status='selected' 체크하므로 먼저 실행
-  const { error: subError } = await supabaseAdmin
+  // ── 2. submission → selected ───────────────────────────────────────────────
+  // ⚠️ tasks.selected_submission_id FK 제약이 status='selected' 체크하므로 먼저 실행
+  const { data: subCheck } = await supabaseAdmin
     .from('submissions')
-    .update({ status: 'selected' })
+    .select('status')
     .eq('id', submission_id)
+    .single()
 
-  if (subError) throw new Error(`Failed to update submission to selected: ${subError.message}`)
+  if (subCheck?.status !== 'submitted' && subCheck?.status !== 'selected') {
+    // 이미 purchased거나 예상 외 상태 → 중단
+    throw new Error(`Unexpected submission status: ${subCheck?.status}`)
+  }
 
-  // ── 3. tasks: selected_submission_id 설정 + status → completed ─────────────
+  if (subCheck.status === 'submitted') {
+    const { error: subError } = await supabaseAdmin
+      .from('submissions')
+      .update({ status: 'selected' })
+      .eq('id', submission_id)
+    if (subError) throw new Error(`Failed to update submission to selected: ${subError.message}`)
+  }
+
+  // ── 3. task → completed ────────────────────────────────────────────────────
   const { error: taskError } = await supabaseAdmin
     .from('tasks')
-    .update({
-      selected_submission_id: submission_id,
-      status: 'completed',
-    })
+    .update({ selected_submission_id: submission_id, status: 'completed' })
     .eq('id', task_id)
-
   if (taskError) throw new Error(`Failed to update task: ${taskError.message}`)
 
-  // ── 4. orders: pending → paid (트리거 trg_create_payout_on_paid 발동) ──────
+  // ── 4. order → paid (trg_create_payout_on_paid 트리거) ─────────────────────
   const { error: orderError } = await supabaseAdmin
     .from('orders')
     .update({
@@ -184,15 +205,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       stripe_checkout_session_id: session.id,
     })
     .eq('id', orderId)
-
   if (orderError) throw new Error(`Failed to update order to paid: ${orderError.message}`)
 
-  // ── 5. submission: selected → purchased (원본 공개) ─────────────────────────
+  // ── 5. submission → purchased (원본 공개) ──────────────────────────────────
   const { error: purchaseError } = await supabaseAdmin
     .from('submissions')
     .update({ status: 'purchased' })
     .eq('id', submission_id)
-
   if (purchaseError) throw new Error(`Failed to mark submission as purchased: ${purchaseError.message}`)
 }
 
@@ -201,7 +220,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  * 결제 실패 → orders.status = 'cancelled'
  */
 async function handlePaymentFailed(pi: Stripe.PaymentIntent) {
-  // 1) 일반 경로: order.stripe_payment_intent_id 로 직접 매칭
   const { data: matchedByPi } = await supabaseAdmin
     .from('orders')
     .update({ status: 'cancelled' })
@@ -211,14 +229,8 @@ async function handlePaymentFailed(pi: Stripe.PaymentIntent) {
 
   if (matchedByPi && matchedByPi.length > 0) return
 
-  // 2) fallback: checkout_session_id 기반 매칭
-  //    (order 생성 시점에 payment_intent_id가 비어있을 수 있음)
   try {
-    const sessions = await stripe.checkout.sessions.list({
-      payment_intent: pi.id,
-      limit: 1,
-    })
-
+    const sessions = await stripe.checkout.sessions.list({ payment_intent: pi.id, limit: 1 })
     const sessionId = sessions.data[0]?.id
     if (!sessionId) return
 
@@ -228,7 +240,7 @@ async function handlePaymentFailed(pi: Stripe.PaymentIntent) {
       .eq('stripe_checkout_session_id', sessionId)
       .eq('status', 'pending')
   } catch {
-    // Stripe 조회 실패 시 다음 webhook 재시도에 맡김
+    // Stripe 조회 실패 → 다음 재전송에서 재시도
   }
 }
 
@@ -254,8 +266,7 @@ async function handleRefunded(charge: Stripe.Charge) {
 
 /**
  * account.updated (Stripe Connect Express)
- * provider 계좌 onboarding 완료 여부 업데이트
- * charges_enabled + payouts_enabled 모두 true면 onboarding 완료로 처리
+ * charges_enabled + payouts_enabled 모두 true → onboarding 완료
  */
 async function handleAccountUpdated(account: Stripe.Account) {
   const { id, charges_enabled, payouts_enabled } = account
@@ -268,9 +279,8 @@ async function handleAccountUpdated(account: Stripe.Account) {
     .is('soft_deleted_at', null)
     .maybeSingle()
 
-  if (!agent) return // 알 수 없는 account — 무시
+  if (!agent) return
 
-  // 상태 변경이 있을 때만 업데이트
   if (fullyConnected && !agent.stripe_onboarding_completed) {
     await supabaseAdmin
       .from('agents')
@@ -280,7 +290,6 @@ async function handleAccountUpdated(account: Stripe.Account) {
       })
       .eq('id', agent.id)
   } else if (!fullyConnected && agent.stripe_onboarding_completed) {
-    // 계좌 정지/취소 등으로 비활성화된 경우
     await supabaseAdmin
       .from('agents')
       .update({ stripe_onboarding_completed: false })
