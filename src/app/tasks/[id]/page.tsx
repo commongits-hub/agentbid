@@ -20,6 +20,21 @@ type Submission = {
   content_text?: string | null; file_path?: string | null
 }
 
+type AgentSummary = {
+  id: string
+  name: string
+  avg_rating: number | null
+  completed_count: number
+  recentReviews: { rating: number; content: string; created_at: string }[]
+}
+
+// Demo agent summaries
+const DEMO_AGENTS: Record<string, AgentSummary> = {
+  a1: { id: 'a1', name: 'LogoCraft AI',   avg_rating: 4.9, completed_count: 128, recentReviews: [{ rating: 5, content: '퀄리티가 예상보다 훨씬 높았습니다. 재요청 의사 있습니다.', created_at: new Date(Date.now()-86400000).toISOString() }] },
+  a2: { id: 'a2', name: 'DesignBot Pro',  avg_rating: 4.7, completed_count: 94,  recentReviews: [{ rating: 5, content: '변형안 3개 모두 완성도 높았습니다. 추천합니다.', created_at: new Date(Date.now()-172800000).toISOString() }] },
+  a3: { id: 'a3', name: 'IconFactory',    avg_rating: 4.6, completed_count: 61,  recentReviews: [{ rating: 4, content: '전달 속도가 빠르고 요구사항 반영이 정확했습니다.', created_at: new Date(Date.now()-259200000).toISOString() }] },
+}
+
 // Demo submissions shown to logged-out visitors
 const DEMO_SUBMISSIONS: Submission[] = [
   { id: 'ds1', agent_id: 'a1', status: 'submitted', quoted_price: 65000, preview_text: '브랜드 컬러와 심볼을 활용한 미니멀 아이콘입니다. iOS Human Interface Guidelines 기준으로 제작했으며 SVG, PNG 1024px 납품 가능합니다.', preview_thumbnail_url: null },
@@ -43,6 +58,7 @@ export default function TaskDetailPage() {
   const router = useRouter()
   const [task, setTask]           = useState<Task | null>(null)
   const [submissions, setSubs]    = useState<Submission[]>([])
+  const [agents, setAgents]       = useState<Record<string, AgentSummary>>({})
   const [myUserId, setMyUserId]   = useState<string | null>(null)
   const [loading, setLoading]     = useState(true)
   const [selecting, setSelecting] = useState<string | null>(null)
@@ -59,7 +75,7 @@ export default function TaskDetailPage() {
 
       // demo-* route: 명시적 데모 ID → 실제 DB 조회 없이 데모 데이터 표시
       if (taskId.startsWith('demo')) {
-        setTask(DEMO_TASK); setSubs(DEMO_SUBMISSIONS); setIsDemo(true); setLoading(false)
+        setTask(DEMO_TASK); setSubs(DEMO_SUBMISSIONS); setAgents(DEMO_AGENTS); setIsDemo(true); setLoading(false)
         return
       }
 
@@ -82,7 +98,38 @@ export default function TaskDetailPage() {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
         const data = await res.json()
-        setSubs(data.data ?? [])
+        const subs: Submission[] = data.data ?? []
+        setSubs(subs)
+
+        // agent 요약 (평점 + 완료수 + 최근 리뷰) 조회
+        const agentIds = [...new Set(subs.map(s => s.agent_id))].filter(Boolean)
+        if (agentIds.length > 0) {
+          const { data: agentRows } = await supabase
+            .from('agents')
+            .select('id, name, avg_rating, completed_count')
+            .in('id', agentIds)
+
+          const agentMap: Record<string, AgentSummary> = {}
+          for (const a of agentRows ?? []) {
+            agentMap[a.id] = { id: a.id, name: a.name, avg_rating: a.avg_rating, completed_count: a.completed_count, recentReviews: [] }
+          }
+
+          // 최근 리뷰 일괄 조회
+          const { data: reviewRows } = await supabase
+            .from('reviews')
+            .select('agent_id, rating, content, created_at')
+            .in('agent_id', agentIds)
+            .eq('status', 'published')
+            .order('created_at', { ascending: false })
+            .limit(agentIds.length * 2)
+
+          for (const r of reviewRows ?? []) {
+            if (agentMap[r.agent_id] && agentMap[r.agent_id].recentReviews.length < 2) {
+              agentMap[r.agent_id].recentReviews.push({ rating: r.rating, content: r.content, created_at: r.created_at })
+            }
+          }
+          setAgents(agentMap)
+        }
       }
       setLoading(false)
     }
@@ -280,9 +327,11 @@ export default function TaskDetailPage() {
 
             {/* Submission cards */}
             {(isDemo ? DEMO_SUBMISSIONS : submissions).map((sub, idx) => {
-              const agentName = isDemo
-                ? AGENT_NAMES[sub.agent_id] ?? `Agent ${idx + 1}`
-                : `에이전트 ${idx + 1}`
+              const agentInfo   = agents[sub.agent_id]
+              const agentName   = agentInfo?.name ?? (isDemo ? AGENT_NAMES[sub.agent_id] : null) ?? `에이전트 ${idx + 1}`
+              const avgRating   = agentInfo?.avg_rating
+              const completedCt = agentInfo?.completed_count ?? 0
+              const reviews     = agentInfo?.recentReviews ?? []
               const isPurchased = sub.status === 'purchased'
               const isSelected  = sub.status === 'selected'
 
@@ -303,13 +352,39 @@ export default function TaskDetailPage() {
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-gray-200">{agentName}</p>
-                        {isDemo && (
-                          <p className="text-xs text-amber-400">★ 4.{7+idx} · {60+idx*20}건 완료</p>
-                        )}
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {avgRating != null ? (
+                            <span className="text-xs text-amber-400">
+                              ★ {avgRating.toFixed(1)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-600">평점 없음</span>
+                          )}
+                          {completedCt > 0 && (
+                            <span className="text-xs text-gray-600">· {completedCt}건 완료</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <StatusBadge status={sub.status} />
                   </div>
+
+                  {/* Recent reviews */}
+                  {reviews.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {reviews.map((rv, ri) => (
+                        <div key={ri} className="rounded-xl border border-gray-800/50 bg-gray-950/30 px-3 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-amber-400">{'★'.repeat(rv.rating)}{'☆'.repeat(5-rv.rating)}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500 line-clamp-2">{rv.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!agentInfo && !isDemo && (
+                    <p className="mt-2 text-xs text-gray-700">리뷰 정보 없음</p>
+                  )}
 
                   {/* Thumbnail */}
                   {sub.preview_thumbnail_url && (
