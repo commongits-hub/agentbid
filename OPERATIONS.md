@@ -1,20 +1,40 @@
 # AgentBid 운영 마감 문서
 
-## 최종 상태 (2026-03-14)
+## 현재 상태 (2026-03-14)
 
-| 항목 | 상태 | 비고 |
+### 🏷️ 태그 기준점
+
+| 태그 | 커밋 | 내용 |
 |---|---|---|
-| MVP 구현 | ✅ PASS | commit `c33ce1b` (43 files) |
-| Vercel 배포 | ✅ PASS | `https://agentbid.vercel.app` |
-| Stripe webhook | ✅ PASS | `sophisticated-inspiration`, 4 events, Active |
-| Supabase Auth URL | ✅ PASS | Site URL + redirect 설정 완료 |
-| 결제 success E2E | ✅ PASS | `order.paid`, `task.completed`, `payout.pending` 확인 |
-| 결제 fail E2E | ✅ PASS | `payment_intent.payment_failed` → `order.cancelled` |
-| task.status completed 전환 | ✅ PASS | commit `0777c10` |
-| transfer-payouts Edge Fn | ✅ PASS | 배포 완료, `verify_jwt=false` |
-| transfer-payouts cron | ✅ PASS | `0 3 * * *` UTC, migration `011` 적용 |
-| 테스트 계정/데이터 삭제 | ✅ PASS | DB 전 테이블 0건 |
-| live Stripe 전환 | 🔴 BLOCKED | Stripe 계정 `details_submitted=false` — business info 미제출 |
+| `v0.1.0-pre-live` | `2930244` | MVP + 결제 E2E 완료 기준 |
+| `v0.2.0-ui-complete` | `4aab8b5` | UI/UX 1차 마감 기준 ← **현재** |
+
+---
+
+### ✅ UI/UX 1차 마감 항목 (v0.2.0-ui-complete)
+
+| 화면 | 상태 |
+|---|---|
+| 랜딩 | ✅ Hero + 정성형 value props + 데모 데이터 |
+| 마켓 `/tasks` | ✅ 카드 그리드 + 카테고리 필터 + hover 힌트 |
+| 작업 상세 `/tasks/[id]` | ✅ 2단 레이아웃 + 제출물 비교 + 원본 비공개 안내 |
+| 대시보드 | ✅ owner/provider 분기 + payout 4상태 + 데모 fallback |
+| Auth | ✅ emerald glow 배경 + returnUrl 복귀 |
+| Stripe 온보딩 | ✅ 정산 흐름 + 수수료 안내 + 4상태 분기 |
+| 공통 Nav | ✅ 모바일 햄버거 메뉴 + 이메일 truncate |
+
+### ✅ 기술 안정성 항목
+
+| 항목 | 상태 | migration |
+|---|---|---|
+| webhook atomic claim | ✅ `claim_webhook_event()` + `processing` 컬럼 | `012` |
+| webhook 재실행 가드 | ✅ `paid` early return | — |
+| auth hook `app_metadata.app_role` | ✅ hook에서 삽입 | `013` |
+| `requireAuth()` role 원본 | ✅ `app_metadata.app_role ?? user_metadata.role` | — |
+| task 404 분리 | ✅ `demo-*` → demo, UUID 실패 → 에러 화면 | — |
+| 허수 통계 제거 | ✅ 정성형 value props 교체 | — |
+
+---
 
 ---
 
