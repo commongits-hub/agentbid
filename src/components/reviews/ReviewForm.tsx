@@ -1,3 +1,7 @@
+// src/components/reviews/ReviewForm.tsx
+// TODO: StarRatingInput 공통 컴포넌트 분리 예정
+//   ReviewForm + ReviewEditForm의 별점 UI (star map, hover, label, char count) 중복 구현 상태
+//   다음 리팩토링 라운드에서 StarRatingInput.tsx로 추출 — 현재는 기능 안정성 우선으로 보류
 'use client'
 
 import { useState } from 'react'

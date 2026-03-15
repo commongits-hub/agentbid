@@ -11,6 +11,12 @@ export function Nav() {
   const [email, setEmail]       = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
+  // 세션 캐시 완전 초기화 목적 — router.push로 교체 금지 (캐시 잔존 방지)
+  async function handleSignOut() {
+    await createClient().auth.signOut()
+    window.location.href = '/'
+  }
+
   useEffect(() => {
     const sb = createClient()
     sb.auth.getSession().then(({ data: { session } }) => {
@@ -53,7 +59,7 @@ export function Nav() {
             <>
               <span className="max-w-[160px] truncate text-gray-500">{email}</span>
               <button
-                onClick={async () => { await createClient().auth.signOut(); window.location.href = '/' }}
+                onClick={handleSignOut}
                 className="text-gray-400 transition-colors hover:text-gray-100"
               >
                 로그아웃
@@ -108,7 +114,7 @@ export function Nav() {
               <div className="flex flex-col gap-2">
                 <span className="truncate px-3 text-xs text-gray-500">{email}</span>
                 <button
-                  onClick={async () => { await createClient().auth.signOut(); window.location.href = '/' }}
+                  onClick={handleSignOut}
                   className="rounded-xl px-3 py-2.5 text-left text-sm text-gray-400 transition-colors hover:bg-gray-800/50"
                 >
                   로그아웃

@@ -1,3 +1,5 @@
+// src/components/reviews/ReviewEditForm.tsx
+// TODO: StarRatingInput 공통 컴포넌트 분리 예정 (ReviewForm.tsx와 동일 — 같이 처리)
 'use client'
 
 import { useState } from 'react'

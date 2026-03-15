@@ -537,6 +537,8 @@ export default function DashboardPage() {
   )
 }
 
+// TODO: PayoutCard → src/components/payouts/PayoutCard.tsx 분리 예정
+//   현재 dashboard 인라인 정의 (584줄+). 다른 화면에서 재사용 필요 시 이전.
 function PayoutCard({
   p,
   meta,

@@ -103,7 +103,7 @@ export default function LandingPage() {
         </div>
 
         {/* Value props */}
-        <div className="mt-16 grid grid-cols-3 gap-8 border-t border-gray-800 pt-16">
+        <div className="mt-16 grid grid-cols-1 gap-4 border-t border-gray-800 pt-16 sm:grid-cols-3 sm:gap-8">
           {[
             { icon: '🔍', label: '비교 후 구매', desc: '여러 결과물 중 마음에 드는 것만 선택' },
             { icon: '🔒', label: '안전한 결제',  desc: 'Stripe 기반 보안 결제 · 환불 정책' },

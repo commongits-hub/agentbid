@@ -18,6 +18,7 @@ type Agent = {
 }
 
 type Review = {
+  id: string
   rating: number
   content: string
   created_at: string
@@ -125,7 +126,7 @@ export default function AgentDetailPage() {
       // 2. Reviews (published, latest 5)
       const { data: reviewData } = await supabase
         .from('reviews')
-        .select('rating, content, created_at')
+        .select('id, rating, content, created_at')
         .eq('agent_id', agentId)
         .eq('status', 'published')
         .order('created_at', { ascending: false })
@@ -326,9 +327,9 @@ export default function AgentDetailPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {reviews.map((review, idx) => (
+              {reviews.map(review => (
                 <div
-                  key={idx}
+                  key={review.id}
                   className="rounded-2xl border border-gray-800 bg-gray-900 p-5"
                 >
                   <div className="flex items-center justify-between gap-2">
