@@ -60,9 +60,9 @@ export async function GET(
     )
   }
 
-  // 4. Storage signed URL 발급 (bucket: 'submissions')
+  // 4. Storage signed URL 발급 (bucket: 'submission-files')
   const { data: urlData, error: urlErr } = await supabaseAdmin.storage
-    .from('submissions')
+    .from('submission-files')
     .createSignedUrl(submission.file_path, SIGNED_URL_EXPIRES_IN)
 
   if (urlErr || !urlData?.signedUrl) {

@@ -1,6 +1,16 @@
 // src/app/api/orders/route.ts
 // POST /api/orders - 주문 생성 (task owner가 submission 선택 후 결제 시작)
 // GET  /api/orders - 본인 주문 목록 조회
+//
+// ⚠️ 결제 생성 순서 (Stripe-first + DB 실패 시 session expire)
+//   1. 검증 (task owner, submission 상태, pending 중복 확인)
+//   2. Stripe Checkout Session 생성
+//   3. DB orders 레코드 insert (pending)
+//   4. DB insert 실패 → Stripe session.expire() 즉시 호출 (orphan session 제거)
+//
+//   stripe_checkout_session_id 컬럼에 immutability trigger가 걸려 있어
+//   "DB pending first → Stripe → update session_id" 순서가 불가하므로
+//   현재 순서를 유지하되 실패 시 세션을 정리하는 방식으로 orphan 방지.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/middleware/auth'
@@ -109,48 +119,65 @@ export async function POST(req: NextRequest) {
   const platformFee = Math.floor(amount * feeRate)
   const providerAmount = amount - platformFee
 
-  // pending 중복 방지 확인
+  // pending 중복 방지 확인 (submission 기준 — unique constraint 보조)
   const { data: existingOrder } = await supabaseAdmin
     .from('orders')
     .select('id, status')
-    .eq('task_id', task_id)
-    .eq('status', 'pending')
-    .single()
+    .eq('submission_id', submission_id)
+    .maybeSingle()
 
   if (existingOrder) {
-    return NextResponse.json(
-      { error: 'A pending order already exists for this task', order_id: existingOrder.id },
-      { status: 409 },
-    )
+    if (existingOrder.status === 'paid') {
+      return NextResponse.json(
+        { error: 'Duplicate order detected' },
+        { status: 409 },
+      )
+    }
+    if (existingOrder.status === 'pending') {
+      return NextResponse.json(
+        { error: 'A pending order already exists for this task', order_id: existingOrder.id },
+        { status: 409 },
+      )
+    }
+    // cancelled/refunded 등 → 재주문 허용 (아래로 계속)
   }
 
-  // Stripe Checkout Session 생성
-  const checkoutSession = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'payment',
-    line_items: [
-      {
-        price_data: {
-          currency: 'krw',
-          unit_amount: amount,
-          product_data: {
-            name: `AgentBid 작업 결제`,
-            description: `Task ID: ${task_id}`,
+  // ── Stripe Checkout Session 생성 ──────────────────────────────────────────
+  // ⚠️ stripe_checkout_session_id 컬럼에 immutability trigger가 있어
+  //    "pending order 먼저 → session_id update" 순서가 차단됨.
+  //    Stripe를 먼저 생성하되, DB insert 실패 시 즉시 session.expire() 호출.
+  let checkoutSession: Stripe.Checkout.Session
+  try {
+    checkoutSession = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'krw',
+            unit_amount: amount,
+            product_data: {
+              name: `AgentBid 작업 결제`,
+              description: `Task ID: ${task_id}`,
+            },
           },
+          quantity: 1,
         },
-        quantity: 1,
+      ],
+      metadata: {
+        task_id,
+        submission_id,
+        user_id: auth.user.id,
       },
-    ],
-    metadata: {
-      task_id,
-      submission_id,
-      user_id: auth.user.id,
-    },
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/orders/{CHECKOUT_SESSION_ID}/success`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/tasks/${task_id}`,
-  })
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/orders/{CHECKOUT_SESSION_ID}/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/tasks/${task_id}`,
+    })
+  } catch (stripeErr: any) {
+    console.error('Stripe checkout session create failed:', stripeErr.message)
+    return NextResponse.json({ error: 'Failed to create payment session' }, { status: 502 })
+  }
 
-  // orders 레코드 생성 (pending)
+  // ── DB orders 레코드 생성 (pending) ──────────────────────────────────────
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
     .insert({
@@ -168,7 +195,15 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (orderError) {
-    // 중복 주문 에러
+    // DB insert 실패 → orphan Stripe session 즉시 expire (정리)
+    console.error('Order DB insert failed, expiring Stripe session:', orderError.message)
+    try {
+      await stripe.checkout.sessions.expire(checkoutSession.id)
+    } catch (expireErr: any) {
+      // expire 실패는 로그만 — 24h 후 Stripe가 자동 만료
+      console.error('Failed to expire Stripe session:', expireErr.message)
+    }
+
     if (orderError.code === '23505') {
       return NextResponse.json(
         { error: 'Duplicate order detected' },

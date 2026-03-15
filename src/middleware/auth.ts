@@ -80,9 +80,13 @@ export async function requireAuth(
   // JWT payload에서 app_metadata 추출 (hook 주입 값 포함)
   // getUser().app_metadata는 raw_app_meta_data 기준 → hook 주입 app_role 미포함
   const jwtAppMeta = (jwtPayload.app_metadata as Record<string, any>) ?? {}
+  // [DEPRECATED] user_metadata.role fallback: 구버전 계정 호환용
+  // custom_access_token_hook 도입 이후 신규 토큰은 모두 app_metadata.app_role을 포함함.
+  // 운영 안정화 후 user_metadata fallback 제거 예정 (TODO: remove after live stable)
   const userMeta   = authUser.user_metadata ?? {}
 
-  // app_role 우선순위: JWT payload app_metadata > user_metadata (구버전 계정 호환)
+  // app_role 우선순위: JWT payload app_metadata (hook 주입) > user_metadata (구버전 fallback)
+  // live 안정화 후: `?? userMeta.role` 제거하고 `?? 'user'`로 대체
   const role     = (jwtAppMeta.app_role ?? userMeta.role ?? 'user') as 'user' | 'provider' | 'admin'
   const isActive = jwtAppMeta.is_active ?? true
 

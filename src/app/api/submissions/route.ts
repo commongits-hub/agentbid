@@ -2,21 +2,12 @@
 // GET  /api/submissions?task_id=uuid  - task의 submission 목록 조회
 // POST /api/submissions               - submission 등록 (provider 전용)
 //
-// ⚠️ content_text / file_path 마스킹 정책 (이중 방어):
-//
-//   [DB 레벨] submissions_safe view (migration 023):
-//     - content 컬럼은 구매 완료 / 본인 submission / admin만 실제값 반환
-//     - 클라이언트 직접 호출도 view를 통해 자동 마스킹
-//     - security_invoker = true → 기존 RLS 그대로 적용
-//
-//   [API 레벨] 2-query 분리 (추가 효율화):
-//     - task owner:
-//         Query 1: submissions_safe → PREVIEW 컬럼 (전체 submission, content 없음)
-//         Query 2: submissions (service_role) → FULL 컬럼 (paid submission만)
-//         Merge: paid → full row, 미결제 → preview row
-//         → 미결제 submission content는 서버 메모리에도 올라오지 않음
-//     - provider: submissions_safe → FULL (본인 submission, view에서 자동 공개)
-//     - 그 외: 403
+// ⚠️ content_text / file_path 마스킹 정책:
+//   - task owner:  paid submission만 full content, 미결제는 preview only
+//   - provider:    본인 submission만 full content (submissions_safe view)
+//   - 그 외:       403
+//   DB 레벨 방어: submissions_safe view (migration 023, security_definer)
+//   API 레벨 방어: 2-query 분리 — 미결제 content는 서버 메모리에도 올라오지 않음
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, requireProvider } from '@/middleware/auth'

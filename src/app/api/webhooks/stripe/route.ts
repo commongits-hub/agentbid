@@ -98,12 +98,12 @@ export async function POST(req: NextRequest) {
 /**
  * checkout.session.completed
  *
- * 멱등성 보장: order가 이미 'paid'이면 조용히 리턴 (재실행 가드).
+ * 멱등성 보장: 각 단계 전 현재 상태를 재조회하여 이미 처리된 경우 조용히 종료.
  * 순서:
  *   1. order 조회 (session ID 우선, fallback: submission_id)
- *   2. submission → selected
- *   3. task → completed
- *   4. order  → paid  (트리거 trg_create_payout_on_paid 발동)
+ *   2. submission 상태 재확인 → submitted이면 selected로
+ *   3. task 상태 재확인 → completed 아닌 경우만 update
+ *   4. order → paid (trg_create_payout_on_paid 트리거) + row count=1 검증
  *   5. submission → purchased (원본 공개)
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
@@ -133,7 +133,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   // 재실행 가드: 이미 paid이면 중복 처리 없이 종료
   if (orderBySession?.status === 'paid') {
-    console.log(`[webhook] checkout.session.completed already processed — order ${orderBySession.id}`)
+    console.log(`[webhook] already paid — order ${orderBySession.id}`)
     return
   }
 
@@ -167,36 +167,58 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     )
   }
 
-  // ── 2. submission → selected ───────────────────────────────────────────────
+  // ── 2. submission 상태 재확인 → selected ────────────────────────────────────
   // ⚠️ tasks.selected_submission_id FK 제약이 status='selected' 체크하므로 먼저 실행
-  const { data: subCheck } = await supabaseAdmin
+  const { data: subCurrent, error: subFetchErr } = await supabaseAdmin
     .from('submissions')
     .select('status')
     .eq('id', submission_id)
     .single()
 
-  if (subCheck?.status !== 'submitted' && subCheck?.status !== 'selected') {
-    // 이미 purchased거나 예상 외 상태 → 중단
-    throw new Error(`Unexpected submission status: ${subCheck?.status}`)
+  if (subFetchErr || !subCurrent) {
+    throw new Error(`Failed to fetch submission: ${subFetchErr?.message}`)
   }
 
-  if (subCheck.status === 'submitted') {
-    const { error: subError } = await supabaseAdmin
+  // purchased = 전체 플로우 이미 완료 → 조용히 종료 (완전 멱등)
+  if (subCurrent.status === 'purchased') {
+    console.log(`[webhook] submission already purchased — ${submission_id}, skipping`)
+    return
+  }
+
+  // submitted → selected 전환
+  if (subCurrent.status === 'submitted') {
+    const { error: subToSelectedErr } = await supabaseAdmin
       .from('submissions')
       .update({ status: 'selected' })
       .eq('id', submission_id)
-    if (subError) throw new Error(`Failed to update submission to selected: ${subError.message}`)
+      .eq('status', 'submitted')       // 상태 재확인: 동시 처리 가드
+    if (subToSelectedErr) throw new Error(`Failed to update submission to selected: ${subToSelectedErr.message}`)
+  }
+  // status === 'selected' → 이미 선택됨, 계속 진행
+
+  // ── 3. task 상태 재확인 → completed ─────────────────────────────────────────
+  const { data: taskCurrent, error: taskFetchErr } = await supabaseAdmin
+    .from('tasks')
+    .select('status, selected_submission_id')
+    .eq('id', task_id)
+    .single()
+
+  if (taskFetchErr || !taskCurrent) {
+    throw new Error(`Failed to fetch task: ${taskFetchErr?.message}`)
   }
 
-  // ── 3. task → completed ────────────────────────────────────────────────────
-  const { error: taskError } = await supabaseAdmin
-    .from('tasks')
-    .update({ selected_submission_id: submission_id, status: 'completed' })
-    .eq('id', task_id)
-  if (taskError) throw new Error(`Failed to update task: ${taskError.message}`)
+  // 이미 completed + 올바른 submission이면 진행 허용 (재실행 복구)
+  if (taskCurrent.status !== 'completed') {
+    const { error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .update({ selected_submission_id: submission_id, status: 'completed' })
+      .eq('id', task_id)
+    if (taskError) throw new Error(`Failed to update task: ${taskError.message}`)
+  }
 
   // ── 4. order → paid (trg_create_payout_on_paid 트리거) ─────────────────────
-  const { error: orderError } = await supabaseAdmin
+  // row count = 1 검증: 0이면 이미 paid이거나 다른 상태 — 처리 불필요
+  const { data: paidRows, error: orderError } = await supabaseAdmin
     .from('orders')
     .update({
       status: 'paid',
@@ -205,7 +227,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       stripe_checkout_session_id: session.id,
     })
     .eq('id', orderId)
+    .eq('status', 'pending')           // 상태 재확인: pending인 경우에만 update
+    .select('id')
+
   if (orderError) throw new Error(`Failed to update order to paid: ${orderError.message}`)
+
+  if (!paidRows || paidRows.length === 0) {
+    // 이미 paid 처리됨 (동시 webhook 재전송) → 조용히 종료
+    console.log(`[webhook] order already processed — orderId: ${orderId}`)
+    return
+  }
+
+  if (paidRows.length !== 1) {
+    throw new Error(`Unexpected order update count: ${paidRows.length} (expected 1)`)
+  }
 
   // ── 5. submission → purchased (원본 공개) ──────────────────────────────────
   const { error: purchaseError } = await supabaseAdmin
