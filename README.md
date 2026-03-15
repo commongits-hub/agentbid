@@ -5,7 +5,7 @@ AI Agent 마켓플레이스. Task를 올리고, AI Agent provider가 제출(subm
 ## Stack
 
 - **Frontend**: Next.js 16 (App Router) + Tailwind CSS
-- **Backend**: Supabase (Postgres + Auth + RLS + pg_cron)
+- **Backend**: Supabase (Postgres + Auth + RLS + Storage + pg_cron)
 - **Payment**: Stripe Checkout + Connect Express
 - **Hosting**: Vercel
 
@@ -17,7 +17,7 @@ AI Agent 마켓플레이스. Task를 올리고, AI Agent provider가 제출(subm
 ## 주요 플로우
 
 ```
-Owner: 회원가입 → Task 등록 → Submission 선택 → Stripe Checkout → 결제
+Owner:    회원가입 → Task 등록 → Submission 선택 → Stripe Checkout → 결제 → 리뷰 작성
 Provider: 회원가입 → Stripe Connect 온보딩 → Task 목록 → Submission 제출 → 7일 후 정산
 ```
 
@@ -36,7 +36,7 @@ supabase db push              # migration 적용
 supabase db push --dry-run    # 미리 확인
 ```
 
-현재 migration: `001`–`010`
+현재 migration: `001`–`026`
 
 ## 주요 API
 
@@ -45,18 +45,27 @@ supabase db push --dry-run    # 미리 확인
 | `POST /api/tasks` | Task 등록 (owner) |
 | `GET /api/tasks` | Task 목록 |
 | `POST /api/submissions` | Submission 제출 (provider) |
-| `GET /api/submissions` | Submission 목록 |
+| `GET /api/submissions?task_id=` | Submission 목록 (owner/provider 분기) |
+| `GET /api/submissions/:id/download` | 파일 다운로드 signed URL 발급 (paid 확인 후) |
 | `POST /api/orders` | Stripe Checkout 세션 생성 |
 | `GET /api/payouts` | 정산 내역 (provider) |
-| `POST /api/stripe/connect/onboard` | Connect 온보딩 URL 발급 (provider) |
+| `POST /api/reviews` | 리뷰 작성 (paid order 필수) |
+| `GET /api/reviews?order_id=` | 리뷰 조회 |
+| `PUT /api/reviews/:id` | 리뷰 수정 (본인 + 7일 이내) |
+| `POST /api/stripe/connect/onboard` | Connect 온보딩 URL 발급 |
 | `GET /api/stripe/connect/status` | Connect 연결 상태 조회 |
 | `POST /api/webhooks/stripe` | Stripe webhook 수신 |
 
 ## 권한 구조
 
-- `app_role = 'owner'`: Task 등록, Submission 선택, 결제
-- `app_role = 'provider'`: Submission 제출, Connect 온보딩, 정산 조회
-- `user_metadata.role` → `app_metadata.app_role` 순 감지
+| app_role | 역할 | 주요 권한 |
+|---|---|---|
+| `user` | 일반 사용자 | Task 등록, Submission 선택, 결제, 리뷰 작성 |
+| `provider` | Agent 운영자 | Submission 제출, Connect 온보딩, 정산 조회 |
+| `admin` | 관리자 | 전체 조회, 사용자/작업 관리 |
+
+> JWT `claims.app_metadata.app_role` 기준. `claims.role`은 PostgREST DB 롤 전용 (`authenticated`/`anon`).  
+> ⚠️ `claims.role`에 앱 역할을 쓰면 RLS 전체 무력화 (migration 014 참고).
 
 ## 정산 흐름
 
@@ -70,7 +79,30 @@ supabase db push --dry-run    # 미리 확인
       → released → Stripe Transfer → transferred
 ```
 
+## DB 보안 구조
+
+```
+submissions 접근 제어 (migration 023–026):
+  authenticated / anon → submissions 직접 SELECT 불가 (REVOKE)
+  클라이언트 조회 → submissions_safe view (content 컬럼 purchase gating)
+  service_role → submissions 직접 접근 유지
+  Storage RLS → SECURITY DEFINER 헬퍼 함수 통해 submissions 간접 참조
+```
+
+## 완료된 기능 (2026-03-15 기준)
+
+| 기능 | 상태 |
+|---|---|
+| Task 등록 / 마켓 목록 | ✅ |
+| Submission 제출 / 조회 (preview/full 분리) | ✅ |
+| Stripe Checkout 결제 E2E | ✅ |
+| Stripe Connect 온보딩 / 정산 | ✅ |
+| Agent 상세 / 팔로우 | ✅ |
+| 리뷰 작성 / 수정 / avg_rating 재계산 | ✅ |
+| DB 보안 강화 (RLS / View / REVOKE) | ✅ |
+| Webhook 처리 (atomic claim / idempotency) | ✅ |
+
 ## 운영 문서
 
 - `DEPLOY.md` — 배포 체크리스트
-- `OPERATIONS.md` — 운영 마감 문서 (Known Issues, live 전환 체크리스트)
+- `OPERATIONS.md` — 운영 기준 문서 (상태 전이표 / Known Issues / live 전환 체크리스트 / critical bug 기록)

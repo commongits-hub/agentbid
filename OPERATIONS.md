@@ -34,6 +34,7 @@
 | `requireAuth()` role 원본 | ✅ `app_metadata.app_role ?? user_metadata.role` | — |
 | **[필수 패치] `claims.role` 오버라이드 제거** | ✅ `authenticated` 유지 | `014` |
 | Agent 상세 / 팔로우 기능 | ✅ follow/unfollow/follower_count/최근 리뷰 동작 완료 | — |
+| 리뷰 플로우 완료 | ✅ 작성 / 수정(7일) / 중복 방지 / avg_rating 재계산 | — |
 | task 404 분리 | ✅ `demo-*` → demo, UUID 실패 → 에러 화면 | — |
 | 허수 통계 제거 | ✅ 정성형 value props 교체 | — |
 
