@@ -9,7 +9,8 @@
 | `v0.1.0-pre-live` | `2930244` | MVP + 결제 E2E 완료 기준 |
 | `v0.2.0-ui-complete` | `4aab8b5` | UI/UX 1차 마감 기준 |
 | `v0.3.0-security` | `597010d` | DB 보안 강화 완료 기준 |
-| `v0.3.0-product-pass` | `4538f03` | 제품 1차 마감 + 최종 QA PASS ← **현재** |
+| `v0.3.0-product-pass` | `4538f03` | 제품 1차 마감 + 최종 QA PASS |
+| `v0.3.1-regression-pass` | `ec0eda0` | Pre-live regression 21/21 PASS ← **현재** |
 
 ---
 
@@ -49,6 +50,36 @@
 | Admin sidebar — 신고 내역 최상단 + amber dot | ✅ |
 | QA regression 수정: budget_max 누락 / hold 텍스트 오류 / disputed row | ✅ |
 | 최종 QA PASS (owner/provider/admin 3-pass) | ✅ |
+
+---
+
+---
+
+### ✅ Pre-live Regression PASS (v0.3.1-regression-pass — 2026-03-15)
+
+21개 항목 검증 완료. 발견 버그 2건, 수정 완료.
+
+#### BUG-1: follower_count 집계 트리거 무음 실패 (migration 027)
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | DB 코드 문제 |
+| 증상 | `follows` INSERT/DELETE 성공, `agents.follower_count` 미반영 |
+| 원인 | `update_follower_count()` SECURITY DEFINER 없음 → `agents_update` RLS(`user_id=auth.uid()`)에 막혀 타인 agent UPDATE 실패 |
+| 영향 | 팔로우/언팔로우 기능은 동작하나 카운트 표시 항상 0 |
+| 수정 | `migration 027`: `SECURITY DEFINER` 추가, `REVOKE EXECUTE FROM PUBLIC` |
+
+#### BUG-2: admin/provider API 전반 403 (`requireAuth` JWT claims 소스 불일치)
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | 코드 문제 (auth middleware) |
+| 증상 | admin 계정으로 `/api/admin/*` 호출 시 `Admin role required` 403 |
+| 원인 | `requireAuth`가 `getUser()` 반환 `app_metadata`를 사용. 그러나 `getUser()`는 `auth.users.raw_app_meta_data` 기준이고 `custom_access_token_hook`은 JWT payload에만 `app_role` 주입 → `app_role` undefined → role 판정 'user' |
+| 영향 | admin API 전반 차단. provider API도 동일 구조로 잠재적 영향 |
+| 수정 | `decodeJwtPayload()` 헬퍼 추가. `getUser()`는 서명 검증용만, `app_role/is_active`는 JWT payload에서 직접 읽음 |
+
+> ⚠️ 참고: `custom_access_token_hook`이 JWT payload에 값을 주입할 경우, 해당 값은 반드시 JWT를 직접 디코딩해서 읽어야 함. `getUser()` 반환값에는 hook 주입 클레임이 반영되지 않음.
 
 ---
 
