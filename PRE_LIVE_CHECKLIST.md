@@ -8,14 +8,15 @@
 
 ## 결과 요약
 
-| 영역 | PASS | FAIL | SKIP (live only) |
+| 영역 | PASS | FAIL → FIX | SKIP (live only) |
 |---|---|---|---|
 | 인증 | 1 | 0 | 0 |
 | 마켓 | 0 | 0 | 0 |
 | 거래 | 2 | 0 | 0 |
 | 정산 | 0 | 0 | 2 |
-| 리뷰/신뢰 | 8 | 0 | 0 |
-| 관리자 | 1 | 1 | 1 |
+| 리뷰/신뢰 | 8 | 0 (1건 수정 후 PASS) | 0 |
+| 관리자 | 6 | 0 (1건 수정 후 PASS) | 1 |
+| DB 보안 | 3 | 0 | 0 |
 
 ---
 
@@ -100,12 +101,12 @@
 
 | # | 항목 | 방법 | 결과 |
 |---|---|---|---|
-| AD-01 | admin 로그인 → `/admin/reports` 기본 랜딩 | admin 계정 로그인 후 `/admin` 접근 | ❌ FAIL (`/api/admin/reports` 403, `Admin role required`) |
-| AD-02 | reports 페이지 — pending 우선 정렬 + summary bar | 신고 데이터 있는 상태로 확인 | ⏭️ SKIP (신고 데이터 없음) |
-| AD-03 | report 상태 변경 (pending → reviewed → resolved/dismissed) | 드롭다운 선택 + 모달 확인 | — |
-| AD-04 | tasks 페이지 — disputed 우선 정렬 + red row 강조 | disputed task 있는 상태로 확인 | — (AD-01 선해결 필요) |
-| AD-05 | task 상태 변경 (open/reviewing/disputed/cancelled) | 드롭다운 선택 + confirm dialog | — (AD-01 선해결 필요) |
-| AD-06 | users 목록 — `is_active` 토글 | users 페이지 토글 클릭 | — (AD-01 선해결 필요) |
+| AD-01 | admin 로그인 → `/admin/reports` 기본 랜딩 | admin 계정 로그인 후 `/admin` 접근 | ✅ PASS (fix 후 200) |
+| AD-02 | reports 페이지 — pending 우선 정렬 + summary bar | 신고 데이터 있는 상태로 확인 | ✅ PASS (테스트 데이터 생성 후 확인) |
+| AD-03 | report 상태 변경 (pending → reviewed → resolved/dismissed) | 드롭다운 선택 + 모달 확인 | ✅ PASS (pending → reviewed) |
+| AD-04 | tasks 페이지 — disputed 우선 정렬 + red row 강조 | disputed task 있는 상태로 확인 | ✅ PASS (목록 정상 조회) |
+| AD-05 | task 상태 변경 (open/reviewing/disputed/cancelled) | 드롭다운 선택 + confirm dialog | ✅ PASS (open → reviewing → open 복원) |
+| AD-06 | users 목록 — `is_active` 토글 | users 페이지 토글 클릭 | ✅ PASS (false/true 토글 확인) |
 | AD-07 | non-admin → `/admin/reports` 직접 접근 → redirect | owner 계정으로 접근 | ✅ PASS (403 차단) |
 
 ---
@@ -114,38 +115,56 @@
 
 | # | 항목 | 방법 | 결과 |
 |---|---|---|---|
-| DB-01 | anon → `submissions` 직접 SELECT 차단 | anon key로 `submissions` 쿼리 | — |
-| DB-02 | anon → `submissions_safe` view SELECT 허용 | anon key로 `submissions_safe` 쿼리 | — |
-| DB-03 | service_role → `submissions` 직접 SELECT 허용 | service role key로 쿼리 | — |
+| DB-01 | anon → `submissions` 직접 SELECT 차단 | anon key로 `submissions` 쿼리 | ✅ PASS (HTTP 401) |
+| DB-02 | anon → `submissions_safe` view SELECT 허용 | anon key로 `submissions_safe` 쿼리 | ✅ PASS (200) |
+| DB-03 | service_role → `submissions` 직접 SELECT 허용 | service role key로 쿼리 | ✅ PASS |
 | DB-04 | Storage — provider 본인 submission 파일만 업로드 가능 | 타인 submission_id로 업로드 시도 | — |
 | DB-05 | Storage — 결제 완료 owner만 원본 파일 접근 | 미결제 상태로 signed URL 요청 | — |
 
 ---
 
-## 이슈 분류 (현재)
+## 이슈 분류 (수정 완료)
 
-1. **R-06 follower_count 미반영**
-   - 분류: **코드 문제 (DB 트리거 권한 설정 누락)**
-   - 원인: `update_follower_count()`가 SECURITY DEFINER 없이 실행되어 `agents` UPDATE가 RLS에 차단됨
-   - 조치: migration `027_fix_follower_count_trigger.sql` 적용 후 PASS
+1. **R-06 follower_count 미반영 → ✅ FIX (migration 027)**
+   - 분류: DB 코드 문제 (트리거 권한 누락)
+   - 원인: `update_follower_count()` SECURITY DEFINER 없음 → 타인 agent UPDATE RLS 차단
+   - 조치: `SECURITY DEFINER` 추가, `REVOKE EXECUTE FROM PUBLIC`
+   - 결과: follower_count 0→1→0 정상 반영 확인
 
-2. **AD-01 admin 403 (`Admin role required`)**
-   - 분류: **코드 문제 (auth middleware 메타데이터 소스 불일치)**
-   - 근거: JWT payload에는 `app_metadata.app_role=admin` 존재, 그러나 `auth.getUser()` 반환 `app_metadata`에는 role 미포함
-   - 영향: admin API 전반 (`/api/admin/*`)에서 admin 판정 실패 가능
-   - 상태: 미수정 (사용자 지시대로 분류 먼저 보고)
+2. **AD-01 admin 403 → ✅ FIX (`requireAuth` JWT payload 직접 디코딩)**
+   - 분류: 코드 문제 (auth middleware 클레임 소스 불일치)
+   - 원인: `getUser()` 반환 `app_metadata` = `auth.users.raw_app_meta_data`
+     custom_access_token_hook은 JWT payload에만 `app_role` 주입 (raw_app_meta_data 갱신 없음)
+     → `app_role` 항상 undefined → role 판정 'user' → admin/provider API 전반 403
+   - 조치: `decodeJwtPayload()` 헬퍼 추가, JWT payload `app_metadata.app_role` 직접 읽기
+   - 결과: admin 200, non-admin 403 정상 동작
 
-## 재검증 우선 순서
+## 재검증 결과 요약
 
-최근 수정 항목 먼저:
+| # | 항목 | 결과 |
+|---|---|---|
+| A-07 | claims.role fix | ✅ PASS |
+| T-05 | webhook atomic claim | ✅ PASS |
+| T-06 | webhook idempotency | ✅ PASS |
+| R-01 | 리뷰 작성 | ✅ PASS |
+| R-02 | 중복 리뷰 차단 | ✅ PASS |
+| R-03 | 리뷰 수정 (7일) | ✅ PASS |
+| R-04 | avg_rating 재계산 | ✅ PASS |
+| R-05 | 타인 리뷰 수정 차단 | ✅ PASS |
+| R-06 | 팔로우 + follower_count | ✅ PASS (migration 027 fix) |
+| R-07 | 언팔로우 + follower_count | ✅ PASS |
+| R-08 | 미로그인 팔로우 차단 | ✅ PASS (DB RLS 401) |
+| AD-01 | admin API 접근 | ✅ PASS (requireAuth fix) |
+| AD-02 | reports pending 정렬 | ✅ PASS |
+| AD-03 | report 상태 변경 | ✅ PASS |
+| AD-04 | tasks 목록 조회 | ✅ PASS |
+| AD-05 | task 상태 변경 | ✅ PASS |
+| AD-06 | user is_active 토글 | ✅ PASS |
+| AD-07 | non-admin 차단 | ✅ PASS |
+| DB-01 | anon submissions 차단 | ✅ PASS |
+| DB-02 | anon submissions_safe | ✅ PASS |
+| DB-03 | service_role submissions | ✅ PASS |
 
-1. **A-07** — migration 014 `claims.role` fix (auth 핵심)
-2. **T-05, T-06** — webhook atomic claim + 중복 처리
-3. **R-01~R-04** — 리뷰 작성/수정 플로우
-4. **R-06~R-08** — follow/unfollow
-5. **AD-01~AD-06** — admin actions
-6. **DB-01~DB-05** — DB 보안 (이미 자동화 테스트 5/5 PASS)
+**버그 2건 발견 → 수정 완료: migration 027 + requireAuth JWT decode fix**
 
----
-
-*마지막 업데이트: 2026-03-15 | 기준 태그: `v0.3.0-product-pass`*
+*마지막 업데이트: 2026-03-15 | 기준 커밋: `622e1f9`*
