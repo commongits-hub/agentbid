@@ -2,13 +2,21 @@
 // GET  /api/submissions?task_id=uuid  - task의 submission 목록 조회
 // POST /api/submissions               - submission 등록 (provider 전용)
 //
-// ⚠️ content_text / file_path 마스킹 정책:
-//   - task owner: 2-query 분리
-//       1) 전체 submission → PREVIEW 컬럼만 fetch (content 없음)
-//       2) paid submission만 → FULL 컬럼 fetch (content 있음)
-//       → 미결제 submission의 content는 서버 메모리에도 올라오지 않음
-//   - provider: 본인 submission만 (agent_id 필터), FULL 컬럼 허용
-//   - 그 외: 403
+// ⚠️ content_text / file_path 마스킹 정책 (이중 방어):
+//
+//   [DB 레벨] submissions_safe view (migration 023):
+//     - content 컬럼은 구매 완료 / 본인 submission / admin만 실제값 반환
+//     - 클라이언트 직접 호출도 view를 통해 자동 마스킹
+//     - security_invoker = true → 기존 RLS 그대로 적용
+//
+//   [API 레벨] 2-query 분리 (추가 효율화):
+//     - task owner:
+//         Query 1: submissions_safe → PREVIEW 컬럼 (전체 submission, content 없음)
+//         Query 2: submissions (service_role) → FULL 컬럼 (paid submission만)
+//         Merge: paid → full row, 미결제 → preview row
+//         → 미결제 submission content는 서버 메모리에도 올라오지 않음
+//     - provider: submissions_safe → FULL (본인 submission, view에서 자동 공개)
+//     - 그 외: 403
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth, requireProvider } from '@/middleware/auth'
@@ -45,12 +53,13 @@ const MAX_FILE_SIZE    = 100 * 1024 * 1024 // 100MB
 const MAX_CONTENT_TEXT = 50_000            // 50,000자
 const MAX_FILE_NAME    = 255               // 파일명 최대 길이
 
-// file_path 안전 패턴: 'submissions/{uuid}/{filename}' 형태, '..' 및 제어문자 불가
-// 예: submissions/550e8400-e29b-41d4-a716-446655440000/report.pdf
 // file_path 안전 패턴: submissions/{uuid}/{safe-filename}
-// 파일명 허용 문자: 알파벳(대소문자), 숫자, 점, 대시, 언더스코어
-// 차단: 공백, '..' traversal, 제어문자, 슬래시, 특수문자
-const FILE_PATH_PATTERN = /^submissions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-zA-Z0-9._-]{1,255}$/
+// 파일명 규칙:
+//   - 첫 문자: 알파벳(대소문자) 또는 숫자 (점·대시·언더스코어 시작 차단 → '..' 차단)
+//   - 나머지: 알파벳, 숫자, 점, 대시, 언더스코어
+//   - 전체 길이: 1–255자
+// 차단: '..' traversal, '.hidden' 형태, 제어문자, 슬래시, 공백, 특수문자
+const FILE_PATH_PATTERN = /^submissions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$/
 
 // ──────────────────────────────────────────────────────────────────────────────
 // GET /api/submissions?task_id=uuid
@@ -85,11 +94,12 @@ export async function GET(req: NextRequest) {
   // ── Case A: task owner ─────────────────────────────────────────────────────
   if (isTaskOwner) {
     // Query 1: 전체 submission → PREVIEW 컬럼만 fetch (content 없음)
+    // submissions_safe: DB 레벨 마스킹 적용 (migration 023)
+    // PREVIEW_COLUMNS만 select → content 컬럼 자체를 fetch하지 않음 (추가 방어)
     const { data: previewRows, error: listError } = await supabase
-      .from('submissions')
+      .from('submissions_safe')
       .select(SUBMISSION_PREVIEW_COLUMNS)
       .eq('task_id', taskId)
-      .is('soft_deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (listError) {
@@ -147,12 +157,12 @@ export async function GET(req: NextRequest) {
     }
 
     // provider는 본인 작성물에 한해 full content 허용
+    // submissions_safe: DB 레벨 마스킹 적용 (agent_id = get_my_agent_id() → can_see_full = true)
     const { data: rows, error } = await supabase
-      .from('submissions')
+      .from('submissions_safe')
       .select(SUBMISSION_FULL_COLUMNS)
       .eq('task_id', taskId)
-      .eq('agent_id', agent.id)    // 본인 submission만
-      .is('soft_deleted_at', null)
+      .eq('agent_id', agent.id)    // 본인 submission만 (RLS + view 이중 검증)
       .order('created_at', { ascending: false })
 
     if (error) {
