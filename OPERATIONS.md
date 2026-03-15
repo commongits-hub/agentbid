@@ -1,13 +1,14 @@
 # AgentBid 운영 마감 문서
 
-## 현재 상태 (2026-03-14)
+## 현재 상태 (2026-03-15)
 
 ### 🏷️ 태그 기준점
 
 | 태그 | 커밋 | 내용 |
 |---|---|---|
 | `v0.1.0-pre-live` | `2930244` | MVP + 결제 E2E 완료 기준 |
-| `v0.2.0-ui-complete` | `4aab8b5` | UI/UX 1차 마감 기준 ← **현재** |
+| `v0.2.0-ui-complete` | `4aab8b5` | UI/UX 1차 마감 기준 |
+| `v0.3.0-security` | `597010d` | DB 보안 강화 완료 기준 ← **현재** |
 
 ---
 
@@ -31,6 +32,8 @@
 | webhook 재실행 가드 | ✅ `paid` early return | — |
 | auth hook `app_metadata.app_role` | ✅ hook에서 삽입 | `013` |
 | `requireAuth()` role 원본 | ✅ `app_metadata.app_role ?? user_metadata.role` | — |
+| **[필수 패치] `claims.role` 오버라이드 제거** | ✅ `authenticated` 유지 | `014` |
+| Agent 상세 / 팔로우 기능 | ✅ follow/unfollow/follower_count/최근 리뷰 동작 완료 | — |
 | task 404 분리 | ✅ `demo-*` → demo, UUID 실패 → 에러 화면 | — |
 | 허수 통계 제거 | ✅ 정성형 value props 교체 | — |
 
@@ -251,6 +254,49 @@ claim_webhook_event(id, type) → true: 처리 시작
 **TODO (non-urgent):** 앱 코드 완료/실패 경로가 분산되면 DB 함수로 묶기
 - `mark_webhook_processed(p_id text)` — `processed=true, processing=false`
 - `release_webhook_claim(p_id text)` — `processing=false` (에러 시 재시도)
+
+---
+
+## [필수 패치] Migration 014 — `claims.role` 오버라이드 치명적 버그
+
+### 문제
+
+migration 007 및 013에서 `custom_access_token_hook`이 JWT `claims.role`에
+앱 역할값(`'user'` / `'provider'` / `'admin'`)을 직접 덮어씀.
+
+PostgREST는 JWT `claims.role`을 **PostgreSQL 데이터베이스 롤**로 해석한다.
+`'user'`라는 DB 롤이 존재하지 않으므로:
+
+```
+role "user" does not exist
+```
+
+→ **RLS 정책 전혀 동작하지 않음**
+
+### 영향 범위
+
+- `authenticated` 롤 기반 RLS 전체 무력화
+- 실제로 막힌 기능:
+  - `follows` INSERT / DELETE (팔로우/언팔로우)
+  - `reviews` INSERT (리뷰 작성)
+  - `submissions` INSERT (제출물 등록)
+  - 그 외 authenticated 조건이 붙은 모든 RLS 정책
+
+### 수정 (migration 014)
+
+`claims.role` 오버라이드 라인 완전 제거.
+JWT role은 Supabase Auth가 자동 설정하는 `'authenticated'` / `'anon'` 그대로 유지.
+앱 역할은 `claims.app_metadata.app_role`에만 기록 (API 코드 원본 경로 유지).
+
+### 규칙 — claims.role을 건드리면 안 되는 이유
+
+| 필드 | 의미 | 설정 주체 |
+|---|---|---|
+| `claims.role` | PostgreSQL DB 롤 | Supabase Auth 자동 설정 (`authenticated`/`anon`) |
+| `claims.app_metadata.app_role` | 앱 비즈니스 역할 | `custom_access_token_hook` |
+
+`claims.role`에 앱 역할을 쓰면 PostgREST가 없는 DB 롤로 연결을 시도하며
+**RLS 전체가 무력화**된다. 절대 오버라이드 금지.
 
 ---
 

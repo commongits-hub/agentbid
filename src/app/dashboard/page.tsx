@@ -7,6 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 import { Nav } from '@/components/layout/nav'
 import { StatusBadge } from '@/components/ui/badge'
 import { ReviewForm } from '@/components/reviews/ReviewForm'
+import { ReviewEditForm } from '@/components/reviews/ReviewEditForm'
+
+const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000 // 7일
+
+type ReviewData = { id: string; rating: number; content: string; created_at: string }
 
 type MyTask = {
   id: string; title: string; status: string
@@ -61,8 +66,9 @@ export default function DashboardPage() {
   const [payouts, setPayouts]   = useState<Payout[]>([])
   const [stripeConnected, setStripeConnected] = useState(false)
   const [isDemo, setIsDemo] = useState(false)
-  const [reviewedOrderIds, setReviewedOrderIds] = useState<Set<string>>(new Set())
+  const [reviewMap, setReviewMap]             = useState<Map<string, ReviewData>>(new Map())
   const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null)
+  const [editingOrderId, setEditingOrderId]     = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -88,18 +94,21 @@ export default function DashboardPage() {
         setMyTasks(taskList); setMyOrders(orderList)
         if (taskList.length === 0) { setMyTasks(DEMO_TASKS); setIsDemo(true) }
 
-        // paid 주문에 대한 리뷰 존재 여부 일괄 확인
+        // paid 주문에 대한 리뷰 존재 여부 + 데이터 일괄 확인
         const paidOrders = orderList.filter(o => o.status === 'paid')
         if (paidOrders.length > 0) {
           const reviewChecks = await Promise.all(
             paidOrders.map(o =>
               fetch(`/api/reviews?order_id=${o.id}`, {
                 headers: { Authorization: `Bearer ${session.access_token}` },
-              }).then(r => r.json()).then(d => ({ id: o.id, hasReview: !!d.data }))
+              }).then(r => r.json()).then(d => ({ orderId: o.id, review: d.data ?? null }))
             )
           )
-          const reviewed = new Set(reviewChecks.filter(r => r.hasReview).map(r => r.id))
-          setReviewedOrderIds(reviewed)
+          const map = new Map<string, ReviewData>()
+          for (const { orderId, review } of reviewChecks) {
+            if (review) map.set(orderId, review)
+          }
+          setReviewMap(map)
         }
       }
       setLoading(false)
@@ -206,7 +215,8 @@ export default function DashboardPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {o.status === 'paid' && !reviewedOrderIds.has(o.id) && reviewingOrderId !== o.id && (
+                        {/* 리뷰 미작성: 작성 버튼 */}
+                        {o.status === 'paid' && !reviewMap.has(o.id) && reviewingOrderId !== o.id && (
                           <button
                             onClick={() => setReviewingOrderId(o.id)}
                             className="rounded-xl border border-amber-800/60 bg-amber-950/30 px-3 py-1 text-xs text-amber-400 hover:border-amber-700 transition-colors"
@@ -214,22 +224,62 @@ export default function DashboardPage() {
                             리뷰 작성
                           </button>
                         )}
-                        {o.status === 'paid' && reviewedOrderIds.has(o.id) && (
-                          <span className="text-xs text-gray-600">리뷰 완료 ✓</span>
+                        {/* 리뷰 완료: 상태 + 7일 이내면 수정 버튼 */}
+                        {o.status === 'paid' && reviewMap.has(o.id) && editingOrderId !== o.id && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">리뷰 완료 ✓</span>
+                            {Date.now() - new Date(reviewMap.get(o.id)!.created_at).getTime() < EDIT_WINDOW_MS && (
+                              <button
+                                onClick={() => setEditingOrderId(o.id)}
+                                className="rounded-xl border border-gray-700 px-3 py-1 text-xs text-gray-400 hover:border-gray-600 hover:text-gray-300 transition-colors"
+                              >
+                                수정
+                              </button>
+                            )}
+                          </div>
                         )}
                         <StatusBadge status={o.status} />
                       </div>
                     </div>
 
-                    {/* 인라인 리뷰 폼 */}
+                    {/* 인라인 리뷰 작성 폼 */}
                     {reviewingOrderId === o.id && (
                       <div className="mt-4">
                         <ReviewForm
                           orderId={o.id}
                           onSuccess={() => {
-                            setReviewedOrderIds(prev => new Set([...prev, o.id]))
+                            // 작성 완료 후 리뷰 데이터 재조회 (수정 버튼 표시 위해 created_at 필요)
+                            const supabase = createClient()
+                            supabase.auth.getSession().then(({ data: { session } }) => {
+                              if (!session) return
+                              fetch(`/api/reviews?order_id=${o.id}`, {
+                                headers: { Authorization: `Bearer ${session.access_token}` },
+                              }).then(r => r.json()).then(d => {
+                                if (d.data) setReviewMap(prev => new Map(prev).set(o.id, d.data))
+                              })
+                            })
                             setReviewingOrderId(null)
                           }}
+                        />
+                      </div>
+                    )}
+                    {/* 인라인 리뷰 수정 폼 */}
+                    {editingOrderId === o.id && reviewMap.has(o.id) && (
+                      <div className="mt-4">
+                        <ReviewEditForm
+                          reviewId={reviewMap.get(o.id)!.id}
+                          initialRating={reviewMap.get(o.id)!.rating}
+                          initialContent={reviewMap.get(o.id)!.content}
+                          onSuccess={({ rating, content }) => {
+                            setReviewMap(prev => {
+                              const next = new Map(prev)
+                              const existing = next.get(o.id)!
+                              next.set(o.id, { ...existing, rating, content })
+                              return next
+                            })
+                            setEditingOrderId(null)
+                          }}
+                          onCancel={() => setEditingOrderId(null)}
                         />
                       </div>
                     )}
