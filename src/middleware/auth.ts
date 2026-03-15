@@ -15,9 +15,25 @@ export type AuthUser = {
 }
 
 /**
+ * JWT payload를 직접 디코딩 (서명 검증은 getUser()가 담당)
+ * custom_access_token_hook이 JWT에 주입한 claims를 읽기 위해 필요.
+ * getUser() 반환값의 app_metadata는 auth.users.raw_app_meta_data 기준이라
+ * hook이 JWT에만 삽입한 app_role이 누락됨.
+ */
+function decodeJwtPayload(token: string): Record<string, any> {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(Buffer.from(part, 'base64').toString('utf8'))
+  } catch {
+    return {}
+  }
+}
+
+/**
  * API route에서 현재 유저를 검증
  * - Bearer 헤더 우선, 없으면 Cookie fallback
- * - JWT claim에서 role, is_active 추출 (custom_access_token_hook 결과)
+ * - JWT payload에서 직접 app_metadata.app_role / is_active 추출
+ *   (getUser() 반환값은 서명 검증 + user.id 획득용, claims는 JWT에서 직접 읽음)
  */
 export async function requireAuth(
   req: NextRequest,
@@ -25,9 +41,10 @@ export async function requireAuth(
   const bearerToken = req.headers.get('authorization')?.replace('Bearer ', '') ?? ''
 
   let authUser: any = null
+  let jwtPayload: Record<string, any> = {}
 
   if (bearerToken) {
-    // Bearer 토큰: getUser()로 서버 측 검증
+    // Bearer 토큰: getUser()로 서명 검증 + user.id 획득
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -37,7 +54,8 @@ export async function requireAuth(
     if (error || !data.user) {
       return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
     }
-    authUser = data.user
+    authUser   = data.user
+    jwtPayload = decodeJwtPayload(bearerToken)
   } else {
     // Cookie fallback
     const cookieStore = await cookies()
@@ -55,17 +73,18 @@ export async function requireAuth(
     if (error || !data.session) {
       return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
     }
-    authUser = data.session.user
+    authUser   = data.session.user
+    jwtPayload = decodeJwtPayload(data.session.access_token)
   }
 
-  // JWT custom claim에서 role, is_active 추출
-  // 권한 원본: app_metadata.app_role (migration 013 이후 hook이 삽입)
-  // Fallback: user_metadata.role (signup 시 설정 — hook 이전 계정 호환용)
-  // TODO: 모든 계정이 새 hook을 통과한 후 user_metadata fallback 제거
-  const appMeta  = authUser.app_metadata ?? {}
-  const userMeta = authUser.user_metadata ?? {}
-  const role     = (appMeta.app_role ?? userMeta.role ?? 'user') as 'user' | 'provider' | 'admin'
-  const isActive = appMeta.is_active ?? true
+  // JWT payload에서 app_metadata 추출 (hook 주입 값 포함)
+  // getUser().app_metadata는 raw_app_meta_data 기준 → hook 주입 app_role 미포함
+  const jwtAppMeta = (jwtPayload.app_metadata as Record<string, any>) ?? {}
+  const userMeta   = authUser.user_metadata ?? {}
+
+  // app_role 우선순위: JWT payload app_metadata > user_metadata (구버전 계정 호환)
+  const role     = (jwtAppMeta.app_role ?? userMeta.role ?? 'user') as 'user' | 'provider' | 'admin'
+  const isActive = jwtAppMeta.is_active ?? true
 
   if (isActive === false || isActive === 'false') {
     return { error: NextResponse.json({ error: 'Account deactivated' }, { status: 403 }) }

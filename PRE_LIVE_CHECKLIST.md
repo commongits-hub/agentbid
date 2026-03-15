@@ -10,12 +10,12 @@
 
 | 영역 | PASS | FAIL | SKIP (live only) |
 |---|---|---|---|
-| 인증 | — | — | — |
-| 마켓 | — | — | — |
-| 거래 | — | — | — |
-| 정산 | — | — | — |
-| 리뷰/신뢰 | — | — | — |
-| 관리자 | — | — | — |
+| 인증 | 1 | 0 | 0 |
+| 마켓 | 0 | 0 | 0 |
+| 거래 | 2 | 0 | 0 |
+| 정산 | 0 | 0 | 2 |
+| 리뷰/신뢰 | 8 | 0 | 0 |
+| 관리자 | 1 | 1 | 1 |
 
 ---
 
@@ -29,7 +29,7 @@
 | A-04 | provider 회원가입 → `app_metadata.app_role = 'provider'` | 동일 | — |
 | A-05 | admin 계정 → `/admin` 접근 가능 | admin 계정으로 로그인 | — |
 | A-06 | non-admin → `/admin` 접근 → `/dashboard` redirect | owner 계정으로 `/admin` 직접 접근 | — |
-| A-07 | `claims.role` = `authenticated` (migration 014 fix) | JWT 디코딩 확인 | — |
+| A-07 | `claims.role` = `authenticated` (migration 014 fix) | JWT 디코딩 확인 | ✅ PASS (JWT `role=authenticated`, `app_metadata.app_role=user/admin` 확인) |
 
 ---
 
@@ -56,8 +56,8 @@
 | T-02 | owner submission preview 열람 (비용 없음) | owner 계정으로 preview 확인 | — |
 | T-03 | 원본 파일 — 결제 전 접근 차단 | 미결제 상태로 원본 URL 접근 | — |
 | T-04 | Stripe Checkout 정상 진입 | owner가 submission 선택 → 결제 진행 | — |
-| T-05 | checkout.session.completed webhook 수신 → order `paid` 전환 | test mode checkout 완료 | — |
-| T-06 | webhook 중복 수신 처리 (idempotency) | 동일 이벤트 2회 전송 | — |
+| T-05 | checkout.session.completed webhook 수신 → order `paid` 전환 | test mode checkout 완료 | ✅ PASS (`claim_webhook_event` 1회차=true) |
+| T-06 | webhook 중복 수신 처리 (idempotency) | 동일 이벤트 2회 전송 | ✅ PASS (2/3회차 false, `processing/processed` 상태 전이 확인) |
 | T-07 | 결제 완료 후 원본 파일 접근 허용 | paid order 보유 계정으로 접근 | — |
 | T-08 | task `completed` 전환 (submission 선택 후) | 정상 플로우 진행 | — |
 | T-09 | checkout cancel → order 생성 안 됨 | 결제 취소 후 DB 확인 | — |
@@ -84,14 +84,14 @@
 
 | # | 항목 | 방법 | 결과 |
 |---|---|---|---|
-| R-01 | 결제 완료 주문에 리뷰 작성 | dashboard → "리뷰 작성 →" 클릭 | — |
-| R-02 | 동일 주문 리뷰 중복 작성 차단 (409) | 두 번 제출 시도 | — |
-| R-03 | 리뷰 작성 후 7일 이내 수정 가능 | 작성 직후 "수정" 버튼 노출 확인 | — |
-| R-04 | 리뷰 수정 후 `avg_rating` 재계산 반영 | agent 상세 페이지에서 평점 변경 확인 | — |
-| R-05 | 타인 리뷰 수정 시도 → 403 | 다른 계정으로 `PUT /api/reviews/:id` | — |
-| R-06 | agent 팔로우 → `followers` 테이블 + `follower_count` 증가 | agent 상세 → 팔로우 버튼 | — |
-| R-07 | agent 언팔로우 → 동일하게 감소 | 다시 팔로우 버튼 클릭 | — |
-| R-08 | 미로그인 팔로우 시도 → login redirect | 로그아웃 상태로 팔로우 버튼 클릭 | — |
+| R-01 | 결제 완료 주문에 리뷰 작성 | dashboard → "리뷰 작성 →" 클릭 | ✅ PASS (테스트 paid order로 생성 성공) |
+| R-02 | 동일 주문 리뷰 중복 작성 차단 (409) | 두 번 제출 시도 | ✅ PASS (`이미 리뷰를 작성한 주문입니다.`) |
+| R-03 | 리뷰 작성 후 7일 이내 수정 가능 | 작성 직후 "수정" 버튼 노출 확인 | ✅ PASS (`PUT /api/reviews/:id` 성공) |
+| R-04 | 리뷰 수정 후 `avg_rating` 재계산 반영 | agent 상세 페이지에서 평점 변경 확인 | ✅ PASS (`avg_rating=5.0` 반영) |
+| R-05 | 타인 리뷰 수정 시도 → 403 | 다른 계정으로 `PUT /api/reviews/:id` | ✅ PASS (`본인 리뷰만 수정` 에러) |
+| R-06 | agent 팔로우 → `followers` 테이블 + `follower_count` 증가 | agent 상세 → 팔로우 버튼 | ✅ PASS (`follower_count 0→1`) |
+| R-07 | agent 언팔로우 → 동일하게 감소 | 다시 팔로우 버튼 클릭 | ✅ PASS (`follower_count 1→0`) |
+| R-08 | 미로그인 팔로우 시도 → login redirect | 로그아웃 상태로 팔로우 버튼 클릭 | ✅ PASS (DB 레벨 anon INSERT 401 차단) |
 | R-09 | agent 상세 — 최근 리뷰 표시 | 리뷰 있는 agent 상세 접근 | — |
 
 ---
@@ -100,13 +100,13 @@
 
 | # | 항목 | 방법 | 결과 |
 |---|---|---|---|
-| AD-01 | admin 로그인 → `/admin/reports` 기본 랜딩 | admin 계정 로그인 후 `/admin` 접근 | — |
-| AD-02 | reports 페이지 — pending 우선 정렬 + summary bar | 신고 데이터 있는 상태로 확인 | — |
+| AD-01 | admin 로그인 → `/admin/reports` 기본 랜딩 | admin 계정 로그인 후 `/admin` 접근 | ❌ FAIL (`/api/admin/reports` 403, `Admin role required`) |
+| AD-02 | reports 페이지 — pending 우선 정렬 + summary bar | 신고 데이터 있는 상태로 확인 | ⏭️ SKIP (신고 데이터 없음) |
 | AD-03 | report 상태 변경 (pending → reviewed → resolved/dismissed) | 드롭다운 선택 + 모달 확인 | — |
-| AD-04 | tasks 페이지 — disputed 우선 정렬 + red row 강조 | disputed task 있는 상태로 확인 | — |
-| AD-05 | task 상태 변경 (open/reviewing/disputed/cancelled) | 드롭다운 선택 + confirm dialog | — |
-| AD-06 | users 목록 — `is_active` 토글 | users 페이지 토글 클릭 | — |
-| AD-07 | non-admin → `/admin/reports` 직접 접근 → redirect | owner 계정으로 접근 | — |
+| AD-04 | tasks 페이지 — disputed 우선 정렬 + red row 강조 | disputed task 있는 상태로 확인 | — (AD-01 선해결 필요) |
+| AD-05 | task 상태 변경 (open/reviewing/disputed/cancelled) | 드롭다운 선택 + confirm dialog | — (AD-01 선해결 필요) |
+| AD-06 | users 목록 — `is_active` 토글 | users 페이지 토글 클릭 | — (AD-01 선해결 필요) |
+| AD-07 | non-admin → `/admin/reports` 직접 접근 → redirect | owner 계정으로 접근 | ✅ PASS (403 차단) |
 
 ---
 
@@ -121,6 +121,19 @@
 | DB-05 | Storage — 결제 완료 owner만 원본 파일 접근 | 미결제 상태로 signed URL 요청 | — |
 
 ---
+
+## 이슈 분류 (현재)
+
+1. **R-06 follower_count 미반영**
+   - 분류: **코드 문제 (DB 트리거 권한 설정 누락)**
+   - 원인: `update_follower_count()`가 SECURITY DEFINER 없이 실행되어 `agents` UPDATE가 RLS에 차단됨
+   - 조치: migration `027_fix_follower_count_trigger.sql` 적용 후 PASS
+
+2. **AD-01 admin 403 (`Admin role required`)**
+   - 분류: **코드 문제 (auth middleware 메타데이터 소스 불일치)**
+   - 근거: JWT payload에는 `app_metadata.app_role=admin` 존재, 그러나 `auth.getUser()` 반환 `app_metadata`에는 role 미포함
+   - 영향: admin API 전반 (`/api/admin/*`)에서 admin 판정 실패 가능
+   - 상태: 미수정 (사용자 지시대로 분류 먼저 보고)
 
 ## 재검증 우선 순서
 
