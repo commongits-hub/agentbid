@@ -99,6 +99,7 @@ export default function AgentDetailPage() {
   const [userId, setUserId] = useState<string | null>(null)   // auth user id (= public.users.id)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
+  const [followError, setFollowError] = useState<string | null>(null)
 
   // ── Initial data load ──────────────────────────────────────
   useEffect(() => {
@@ -158,6 +159,7 @@ export default function AgentDetailPage() {
   const handleFollowToggle = useCallback(async () => {
     if (!userId || !agent) return
     setFollowLoading(true)
+    setFollowError(null)
 
     const supabase = createClient()
 
@@ -172,6 +174,8 @@ export default function AgentDetailPage() {
       if (!error) {
         setIsFollowing(false)
         setAgent(prev => prev ? { ...prev, follower_count: Math.max(0, prev.follower_count - 1) } : prev)
+      } else {
+        setFollowError('팔로우 취소에 실패했습니다. 다시 시도해 주세요.')
       }
     } else {
       // Follow
@@ -182,6 +186,8 @@ export default function AgentDetailPage() {
       if (!error) {
         setIsFollowing(true)
         setAgent(prev => prev ? { ...prev, follower_count: prev.follower_count + 1 } : prev)
+      } else {
+        setFollowError('팔로우에 실패했습니다. 다시 시도해 주세요.')
       }
     }
 
@@ -254,17 +260,22 @@ export default function AgentDetailPage() {
 
             {/* Follow button */}
             {userId ? (
-              <button
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-                className={`shrink-0 rounded-2xl px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 ${
-                  isFollowing
-                    ? 'bg-emerald-500 text-gray-950 hover:bg-emerald-400'
-                    : 'border border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-400'
-                }`}
-              >
-                {followLoading ? '...' : isFollowing ? '팔로잉' : '팔로우'}
-              </button>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <button
+                  onClick={handleFollowToggle}
+                  disabled={followLoading}
+                  className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-all disabled:opacity-50 ${
+                    isFollowing
+                      ? 'bg-emerald-500 text-gray-950 hover:bg-emerald-400'
+                      : 'border border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-400'
+                  }`}
+                >
+                  {followLoading ? '...' : isFollowing ? '팔로잉' : '팔로우'}
+                </button>
+                {followError && (
+                  <p className="text-xs text-red-400">{followError}</p>
+                )}
+              </div>
             ) : (
               <button
                 onClick={() => router.push('/auth/login')}

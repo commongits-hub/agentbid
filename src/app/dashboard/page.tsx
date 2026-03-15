@@ -69,7 +69,9 @@ export default function DashboardPage() {
       if (!session) { router.push('/auth/login?returnTo=/dashboard'); return }
 
       const meta = session.user.app_metadata ?? {}
-      const role = (meta.app_role ?? session.user.user_metadata?.app_role ?? session.user.user_metadata?.role ?? 'user') as string
+      // role 판정: JWT payload app_metadata.app_role 단일 원본
+      // TODO: live 안정화 후 user_metadata fallback 완전 제거
+      const role = (meta.app_role ?? 'user') as string
       setAppRole(role)
 
       if (role === 'provider') {
@@ -137,12 +139,13 @@ export default function DashboardPage() {
     const ordersNeedingReview = myOrders.filter(o => o.status === 'paid' && !reviewMap.has(o.id))
     const paidTotal           = myOrders.filter(o => o.status === 'paid').reduce((s, o) => s + o.amount, 0)
 
-    // 주문 정렬: 리뷰 미작성 우선
-    const sortedOrders = [...myOrders].sort((a, b) => {
-      const aNeeds = a.status === 'paid' && !reviewMap.has(a.id) ? 0 : 1
-      const bNeeds = b.status === 'paid' && !reviewMap.has(b.id) ? 0 : 1
-      return aNeeds - bNeeds
-    })
+    // 주문 정렬: 리뷰 미작성 paid 최상단 → 리뷰 완료 paid → 나머지(cancelled/refunded/pending)
+    const ORDER_SORT = (o: MyOrder) => {
+      if (o.status === 'paid' && !reviewMap.has(o.id)) return 0
+      if (o.status === 'paid' && reviewMap.has(o.id))  return 1
+      return 2
+    }
+    const sortedOrders = [...myOrders].sort((a, b) => ORDER_SORT(a) - ORDER_SORT(b))
 
     return (
       <div className="min-h-screen bg-[#030712]">
@@ -215,19 +218,22 @@ export default function DashboardPage() {
             ) : (
               <div className="mt-4 space-y-3">
                 {myTasks.map(t => {
+                  const isDemo = t.id.startsWith('d')
                   const needsAttention = t.status === 'open' && t.submission_count > 0
-                  return (
-                    <Link
-                      key={t.id}
-                      href={t.id.startsWith('d') ? '#' : `/tasks/${t.id}`}
-                      className={`flex items-center justify-between gap-4 rounded-2xl border p-4 transition-colors ${
-                        needsAttention
-                          ? 'border-blue-800/50 bg-blue-950/10 hover:border-blue-700'
-                          : 'border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800/80'
-                      }`}
-                    >
+                  const cardCls = `flex items-center justify-between gap-4 rounded-2xl border p-4 transition-colors ${
+                    needsAttention
+                      ? 'border-blue-800/50 bg-blue-950/10 hover:border-blue-700'
+                      : 'border-gray-800 bg-gray-900 hover:border-gray-700 hover:bg-gray-800/80'
+                  }`
+                  const inner = (
+                    <>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-50">{t.title}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-medium text-gray-50">{t.title}</p>
+                          {isDemo && (
+                            <span className="shrink-0 rounded-md bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500">샘플</span>
+                          )}
+                        </div>
                         <p className="mt-0.5 text-xs text-gray-500">
                           {timeAgo(t.created_at)} · 제출{' '}
                           <span className={`font-medium ${needsAttention ? 'text-blue-400' : 'text-gray-400'}`}>
@@ -244,7 +250,12 @@ export default function DashboardPage() {
                         )}
                         <StatusBadge status={t.status} />
                       </div>
-                    </Link>
+                    </>
+                  )
+                  return isDemo ? (
+                    <div key={t.id} className={`${cardCls} cursor-default`}>{inner}</div>
+                  ) : (
+                    <Link key={t.id} href={`/tasks/${t.id}`} className={cardCls}>{inner}</Link>
                   )
                 })}
               </div>
@@ -258,13 +269,16 @@ export default function DashboardPage() {
               <div className="mt-4 space-y-3">
                 {sortedOrders.map(o => {
                   const needsReview = o.status === 'paid' && !reviewMap.has(o.id)
+                  const isReviewed  = o.status === 'paid' && reviewMap.has(o.id)
+                  const isInactive  = ['cancelled', 'refunded', 'pending'].includes(o.status)
                   return (
                     <div
                       key={o.id}
                       className={`rounded-2xl border p-4 ${
-                        needsReview
-                          ? 'border-amber-800/40 bg-amber-950/10'
-                          : 'border-gray-800 bg-gray-900'
+                        needsReview  ? 'border-amber-800/40 bg-amber-950/10' :
+                        isReviewed   ? 'border-gray-700/60 bg-gray-900' :
+                        isInactive   ? 'border-gray-800/50 bg-gray-900/50 opacity-60' :
+                        'border-gray-800 bg-gray-900'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -457,8 +471,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Stats — 행동 필요 우선 */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        {/* Stats — hold 분리, 행동 필요 우선 */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-4">
           <div className={`rounded-2xl border p-5 ${
             totalReleased > 0 ? 'border-blue-800/60 bg-blue-950/20' : 'border-gray-800 bg-gray-900'
           }`}>
@@ -474,13 +488,23 @@ export default function DashboardPage() {
           <div className={`rounded-2xl border p-5 ${
             totalHold > 0 ? 'border-orange-800/60 bg-orange-950/20' : 'border-gray-800 bg-gray-900'
           }`}>
-            <p className="text-xs text-gray-500">대기 중</p>
-            <p className={`mt-1 text-2xl font-bold ${totalPending > 0 || totalHold > 0 ? 'text-amber-400' : 'text-gray-50'}`}>
-              ₩{(totalPending + totalHold).toLocaleString()}
+            <p className={`text-xs ${totalHold > 0 ? 'text-orange-400' : 'text-gray-500'}`}>
+              {totalHold > 0 ? '⚠ 보류 (조치 필요)' : '보류'}
+            </p>
+            <p className={`mt-1 text-2xl font-bold ${totalHold > 0 ? 'text-orange-400' : 'text-gray-50'}`}>
+              ₩{totalHold.toLocaleString()}
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
-              {totalHold > 0 ? `₩${totalHold.toLocaleString()} 보류 포함` : '구매 후 7일 대기'}
+              {totalHold > 0 ? 'Stripe 계좌 연결 필요' : '보류 없음'}
             </p>
+          </div>
+
+          <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5">
+            <p className="text-xs text-gray-500">7일 대기</p>
+            <p className="mt-1 text-2xl font-bold text-amber-400">
+              ₩{totalPending.toLocaleString()}
+            </p>
+            <p className="mt-0.5 text-xs text-gray-600">구매 후 7일 후 정산</p>
           </div>
 
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5">

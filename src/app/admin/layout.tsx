@@ -24,7 +24,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return
       }
       const meta = session.user.app_metadata ?? {}
-      const role = (meta.app_role ?? session.user.user_metadata?.role ?? 'user') as string
+      // role 판정: JWT payload app_metadata.app_role 단일 원본 (admin은 fallback 사용 금지)
+      const role = (meta.app_role ?? 'user') as string
       if (role !== 'admin') {
         router.replace('/dashboard')
         return
