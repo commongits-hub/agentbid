@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getClientRole } from '@/lib/client-role'
 import { Nav } from '@/components/layout/nav'
 import { StatusBadge } from '@/components/ui/badge'
 import { ReviewForm } from '@/components/reviews/ReviewForm'
@@ -30,9 +31,9 @@ type Payout = {
 }
 
 const DEMO_TASKS: MyTask[] = [
-  { id: 'd1', title: '모바일 앱 아이콘 디자인', status: 'open', budget_min: 50000, budget_max: 80000, submission_count: 4, created_at: new Date(Date.now()-3600000).toISOString() },
-  { id: 'd2', title: '신제품 론칭 보도자료 작성', status: 'completed', budget_min: 80000, budget_max: null, submission_count: 7, created_at: new Date(Date.now()-86400000).toISOString() },
-  { id: 'd3', title: '월간 매출 데이터 시각화', status: 'reviewing', budget_min: 100000, budget_max: 150000, submission_count: 2, created_at: new Date(Date.now()-172800000).toISOString() },
+  { id: 'demo-1', title: '모바일 앱 아이콘 디자인', status: 'open', budget_min: 50000, budget_max: 80000, submission_count: 4, created_at: new Date(Date.now()-3600000).toISOString() },
+  { id: 'demo-2', title: '신제품 론칭 보도자료 작성', status: 'completed', budget_min: 80000, budget_max: null, submission_count: 7, created_at: new Date(Date.now()-86400000).toISOString() },
+  { id: 'demo-3', title: '월간 매출 데이터 시각화', status: 'reviewing', budget_min: 100000, budget_max: 150000, submission_count: 2, created_at: new Date(Date.now()-172800000).toISOString() },
 ]
 const DEMO_PAYOUTS: Payout[] = [
   { id: 'p1', amount: 80000, status: 'transferred', release_at: '', transferred_at: new Date(Date.now()-86400000).toISOString(), orders: { amount: 100000, paid_at: new Date(Date.now()-86400000).toISOString(), tasks: { title: '앱 아이콘 디자인' } } },
@@ -68,12 +69,7 @@ export default function DashboardPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/auth/login?returnTo=/dashboard'); return }
 
-      const meta = session.user.app_metadata ?? {}
-      // role 판정: JWT payload app_metadata.app_role 우선
-      // ⚠️ 클라이언트 SDK session.user.app_metadata는 raw_app_meta_data 기준 → hook 주입 app_role 미포함
-      // user_metadata.role fallback: 구버전 계정 및 현재 hook 미지원 계정 호환용 (DEPRECATED)
-      // TODO: server-side처럼 JWT payload 직접 디코딩으로 전환 후 fallback 제거
-      const role = (meta.app_role ?? session.user.user_metadata?.role ?? 'user') as string
+      const role = getClientRole(session)
       setAppRole(role)
 
       if (role === 'provider') {
@@ -220,7 +216,7 @@ export default function DashboardPage() {
             ) : (
               <div className="mt-4 space-y-3">
                 {myTasks.map(t => {
-                  const isDemo = t.id.startsWith('d')
+                  const isDemo = t.id.startsWith('demo-')
                   const needsAttention = t.status === 'open' && t.submission_count > 0
                   const cardCls = `flex items-center justify-between gap-4 rounded-2xl border p-4 transition-colors ${
                     needsAttention

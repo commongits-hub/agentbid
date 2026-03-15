@@ -260,50 +260,93 @@ export default function TasksPage() {
           </div>
         ) : (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {displayTasks.map(task => (
-              <Link
-                key={task.id}
-                href={task.id.startsWith('demo-') ? '/auth/login' : `/tasks/${task.id}`}
-                className="group rounded-2xl border border-gray-800 bg-gray-900 p-5 transition-all hover:border-gray-700 hover:bg-gray-800/80"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <StatusBadge status={task.status} />
-                  <span className="text-xs text-gray-600">{timeAgo(task.created_at)}</span>
-                </div>
+            {displayTasks.map(task => {
+              const isDemo = task.id.startsWith('demo-')
+              return isDemo ? (
+                /* demo 카드: 클릭 시 로그인 — 잠금 오버레이로 명시 */
+                <Link
+                  key={task.id}
+                  href="/auth/login"
+                  className="group relative rounded-2xl border border-gray-800 bg-gray-900 p-5 transition-all hover:border-emerald-800/60 hover:bg-gray-800/80 block"
+                >
+                  {/* 샘플 배지 */}
+                  <span className="absolute right-4 top-4 rounded-full border border-gray-700 bg-gray-800 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                    샘플
+                  </span>
 
-                <h2 className="mt-3 text-sm font-semibold leading-snug text-gray-50 group-hover:text-emerald-400 transition-colors line-clamp-2">
-                  {/* 검색어 하이라이트 */}
-                  {search ? highlightMatch(task.title, search) : task.title}
-                </h2>
+                  <div className="flex items-start justify-between gap-2">
+                    <StatusBadge status={task.status} />
+                    <span className="text-xs text-gray-600">{timeAgo(task.created_at)}</span>
+                  </div>
 
-                <p className="mt-2 text-xs leading-relaxed text-gray-500 line-clamp-2">
-                  {task.description}
-                </p>
+                  <h2 className="mt-3 text-sm font-semibold leading-snug text-gray-50 line-clamp-2">
+                    {task.title}
+                  </h2>
+                  <p className="mt-2 text-xs leading-relaxed text-gray-500 line-clamp-2">{task.description}</p>
 
-                {/* Deadline badge */}
-                {task.deadline_at && (
-                  <div className="mt-2">
-                    <span className="text-xs text-amber-500">
-                      ⏰ 마감 {new Date(task.deadline_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                  {task.deadline_at && (
+                    <div className="mt-2">
+                      <span className="text-xs text-amber-500">
+                        ⏰ 마감 {new Date(task.deadline_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
+                    <div className="text-xs text-gray-400">
+                      {task.budget_min
+                        ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
+                        : '예산 협의'}
+                    </div>
+                    <span className="text-xs text-emerald-500 opacity-0 transition-opacity group-hover:opacity-100">
+                      🔒 로그인 후 보기
                     </span>
                   </div>
-                )}
+                </Link>
+              ) : (
+                /* 실제 task 카드 */
+                <Link
+                  key={task.id}
+                  href={`/tasks/${task.id}`}
+                  className="group rounded-2xl border border-gray-800 bg-gray-900 p-5 transition-all hover:border-gray-700 hover:bg-gray-800/80 block"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <StatusBadge status={task.status} />
+                    <span className="text-xs text-gray-600">{timeAgo(task.created_at)}</span>
+                  </div>
 
-                <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
-                  <div className="text-xs text-gray-400">
-                    {task.budget_min
-                      ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
-                      : '예산 협의'}
+                  <h2 className="mt-3 text-sm font-semibold leading-snug text-gray-50 group-hover:text-emerald-400 transition-colors line-clamp-2">
+                    {search ? highlightMatch(task.title, search) : task.title}
+                  </h2>
+
+                  <p className="mt-2 text-xs leading-relaxed text-gray-500 line-clamp-2">
+                    {task.description}
+                  </p>
+
+                  {task.deadline_at && (
+                    <div className="mt-2">
+                      <span className="text-xs text-amber-500">
+                        ⏰ 마감 {new Date(task.deadline_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
+                    <div className="text-xs text-gray-400">
+                      {task.budget_min
+                        ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
+                        : '예산 협의'}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>
+                        <span className="font-medium text-blue-400">{task.submission_count ?? 0}</span>건 제출
+                      </span>
+                      <span className="text-gray-600 opacity-0 transition-opacity group-hover:opacity-100">→</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>
-                      <span className="font-medium text-blue-400">{task.submission_count ?? 0}</span>건 제출
-                    </span>
-                    <span className="text-gray-600 opacity-0 transition-opacity group-hover:opacity-100">→</span>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              )
+            })}
           </div>
         )}
 

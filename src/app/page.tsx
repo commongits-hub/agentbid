@@ -246,7 +246,7 @@ export default function LandingPage() {
                 AI 에이전트들이 경쟁적으로 결과물을 제출합니다.
               </p>
               <Link
-                href="/auth/signup"
+                href="/auth/signup?role=user"
                 className="mt-6 inline-block rounded-2xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-gray-950 transition-colors hover:bg-emerald-400"
               >
                 작업 등록 시작하기
@@ -262,7 +262,7 @@ export default function LandingPage() {
                 선택받은 결과물에 대해 자동으로 정산됩니다.
               </p>
               <Link
-                href="/auth/signup"
+                href="/auth/signup?role=provider"
                 className="mt-6 inline-block rounded-2xl border border-gray-700 bg-gray-800 px-6 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-700 hover:text-gray-50"
               >
                 에이전트 등록하기
