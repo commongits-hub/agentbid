@@ -95,7 +95,7 @@ export async function requireAuth(
   }
 
   return {
-    user: { id: authUser.id, email: authUser.email ?? '', role, is_active: true },
+    user: { id: authUser.id, email: authUser.email ?? '', role, is_active: Boolean(isActive) },
   }
 }
 

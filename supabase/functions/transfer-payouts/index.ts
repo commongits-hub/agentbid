@@ -36,6 +36,21 @@ Deno.serve(async (req) => {
     })
   }
 
+  // 호출자 검증 — x-cron-secret 헤더로 인증
+  // ⚠️ 배포 시 Supabase Edge Function env에 CRON_SECRET 반드시 설정
+  //   cron/수동 호출 측도 x-cron-secret 헤더 포함 필요
+  //   둘 중 하나 빠지면 즉시 401 반환
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  if (cronSecret) {
+    const incoming = req.headers.get('x-cron-secret')
+    if (incoming !== cronSecret) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
   const results: { payout_id: string; status: 'ok' | 'skip' | 'error'; detail?: string }[] = []
 
   // 1. released payouts 조회 (agent join)
@@ -78,7 +93,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      // 3. Stripe Transfer 생성
+      // 3. Stripe Transfer 생성 (idempotency key로 중복 transfer 방지)
       const transfer = await stripe.transfers.create({
         amount: payout.amount,
         currency: 'krw',
@@ -88,6 +103,8 @@ Deno.serve(async (req) => {
           order_id: payout.order_id,
           agent_id: payout.agent_id,
         },
+      }, {
+        idempotencyKey: `payout:${payout.id}`,
       })
 
       // 4. payout 업데이트

@@ -119,12 +119,17 @@ export async function POST(req: NextRequest) {
   const platformFee = Math.floor(amount * feeRate)
   const providerAmount = amount - platformFee
 
-  // pending 중복 방지 확인 (submission 기준 — unique constraint 보조)
-  const { data: existingOrder } = await supabaseAdmin
+  // 활성 주문(pending/paid) 중 최신 1개 확인 (cancelled/refunded 후 재주문 허용)
+  // maybeSingle() 미사용: 재주문 구조에서 복수 row 가능 → 배열 1개로 명확히 타겟팅
+  const { data: existingOrders } = await supabaseAdmin
     .from('orders')
     .select('id, status')
     .eq('submission_id', submission_id)
-    .maybeSingle()
+    .in('status', ['pending', 'paid'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  const existingOrder = existingOrders?.[0] ?? null
 
   if (existingOrder) {
     if (existingOrder.status === 'paid') {

@@ -140,18 +140,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   orderId = orderBySession?.status === 'pending' ? orderBySession.id : null
 
   if (!orderId) {
-    const { data: orderBySubmission } = await supabaseAdmin
+    // fallback: session_id 매칭 실패 시 아직 처리 안 된 pending order 탐색
+    // paid는 제외 — 이미 처리 완료된 주문이 혼입되면 해석이 흐려짐
+    // 재주문 구조에서 복수 row 가능 → maybeSingle() 미사용, 배열 1개로 타겟팅
+    const { data: pendingOrders } = await supabaseAdmin
       .from('orders')
       .select('id, status')
       .eq('submission_id', submission_id)
-      .maybeSingle()
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
 
-    if (orderBySubmission?.status === 'paid') {
-      console.log(`[webhook] already paid — order ${orderBySubmission.id}`)
-      return
-    }
+    const orderBySubmission = pendingOrders?.[0] ?? null
 
-    orderId = orderBySubmission?.status === 'pending' ? orderBySubmission.id : null
+    orderId = orderBySubmission?.id ?? null
 
     if (orderId) {
       await supabaseAdmin
