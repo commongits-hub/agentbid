@@ -159,9 +159,9 @@
 
 ---
 
-## DB 보안 강화 기록 (migrations 015–021)
+## DB 보안 강화 기록 (migrations 015–026)
 
-### 최신 커밋: `c21ad5d` (migration 021)
+### 최신 커밋: `eea46a4` (migration 026)
 
 ### 상태 전이표 (DB 코드 공식 버전 — migration 021 기준)
 
@@ -203,7 +203,7 @@ cancelled        → terminal
 | payout cancel 사유 구분 | `hold_reason` 있으나 cancel 사유 없음 | `cancel_reason` 컬럼 추가 시 환불취소 vs 수동취소 구분 가능 |
 | released → transferred 레이스 | 환불과 Edge Function 동시 실행 시 DB 레벨 잠금 처리. transferred는 환불 취소 불가 | Edge Function에서 payout status 선행 확인 로직 추가 권장 |
 | emergency 수동 상태 수정 | trigger가 allowlist 강제. 비정상 상태 수동 수정은 migration 또는 직접 psql만 가능 | admin_override RPC 추가 가능 (별도 보안 검토 필요) |
-| submissions 원문 마스킹 | API shaping 의존. DB 레벨 컬럼 마스킹 없음 | View 또는 RPC 방식으로 purchase gating 구현 필요 |
+| submissions 원문 마스킹 | ~~API shaping 의존. DB 레벨 컬럼 마스킹 없음~~ → **완료** (migration 023–026) | `submissions_safe` view + REVOKE + storage helper 함수 조합으로 종료 |
 | stale JWT role | token 재발급 전까지 role 변경 미반영 (최대 1시간) | session invalidation 전략 별도 검토 필요 |
 
 ### advisory lock 상수
@@ -251,3 +251,51 @@ claim_webhook_event(id, type) → true: 처리 시작
 **TODO (non-urgent):** 앱 코드 완료/실패 경로가 분산되면 DB 함수로 묶기
 - `mark_webhook_processed(p_id text)` — `processed=true, processing=false`
 - `release_webhook_claim(p_id text)` — `processing=false` (에러 시 재시도)
+
+---
+
+## DB 보안 강화 기록 (migrations 023–026) — submissions 마스킹 완료
+
+### 최종 보안 구조 (2026-03-15)
+
+| 레이어 | 내용 | migration |
+|---|---|---|
+| `submissions_safe` view | content 컬럼 purchase gating (LATERAL CASE WHEN) | `023`, `025` |
+| `REVOKE SELECT` | `authenticated` / `anon` → submissions base table 직접 SELECT 차단 | `024` |
+| Storage helper 함수 | Storage RLS가 submissions를 직접 쿼리하지 않도록 SECURITY DEFINER 함수로 교체 | `026` |
+| API 2-query 분리 | 서버 메모리에도 미결제 content 미적재 | — |
+
+### submissions_safe view 구조
+
+```
+submissions_safe (security_definer)
+  WHERE: is_admin() OR task 소유자 OR 본인 provider   ← row 접근 제어
+  CASE WHEN can_see_full:                             ← column 마스킹
+    is_admin() OR 본인 submission OR orders.status='paid'
+  → content_text / file_path / file_name / file_size / mime_type
+    → 조건 불충족: NULL 반환
+```
+
+- `security_invoker = true` + REVOKE 조합은 view 자체도 차단됨 (migration 025에서 수정)
+- **규칙: base table REVOKE 시 view는 반드시 security_definer**
+
+### Storage RLS — submissions 직접 참조 차단 (migration 026)
+
+base table REVOKE 이후 Storage RLS 정책이 authenticated 컨텍스트로 submissions를 직접 쿼리하면 접근 불가. 영향받은 흐름:
+
+| 흐름 | 정책 | 수정 |
+|---|---|---|
+| provider 파일 업로드 | `sub_files_upload` | `storage_check_submission_provider(uuid)` |
+| provider 파일 삭제 | `sub_files_delete` | `storage_check_submission_provider_open_task(uuid)` |
+| provider task 첨부파일 조회 | `task_att_select` | `storage_check_provider_for_task(uuid)` |
+
+**규칙: base table REVOKE 후 Storage 정책은 submissions를 직접 쿼리하면 안 됨. SECURITY DEFINER 함수를 통해서만 접근.**
+
+### 롤백 방법 (긴급)
+
+```sql
+-- submissions 직접 접근 복구 (migration 024 롤백)
+GRANT SELECT ON submissions TO authenticated;
+
+-- 단, 복구 후 submissions_safe view와 storage helper 함수는 그대로 유지 권장
+```
