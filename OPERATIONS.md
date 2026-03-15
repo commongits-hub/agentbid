@@ -226,6 +226,28 @@
 
 ---
 
+### 🔧 Migration 028~032: DB 보안 및 trigger 무결성 (2026-03-16 — commit `c00b6e0c`)
+
+| # | Migration | 내용 |
+|---|---|---|
+| 028 | `fix_security_definer_and_submission_count` | `handle_new_user` / `sync_user_email` SET search_path=public; `update_submission_count` DELETE 처리 추가 |
+| 029 | `orders_one_time_purchase_policy` | `orders.submission_id` 1회 구매 정책 COMMENT 명시 (A안 확정) |
+| 030 | `fix_trigger_security_definer` | `recalculate_agent_rating` / `update_follower_count` / `auto_flag_on_reports` / `update_agent_completed_count` — SECURITY DEFINER + search_path + REVOKE |
+| 031 | `fix_auto_flag_trigger_chain` | `prevent_submission_manipulation` — `pg_trigger_depth()>0` trigger chain bypass 추가 |
+| 032 | `fix_review_manipulation_trigger_chain` | `prevent_review_manipulation` — 동일 bypass 추가 |
+
+**배경**: `auto_flag_on_reports()`(SECURITY DEFINER)에서 submissions/reviews status 변경 시
+`prevent_submission/review_manipulation()` immutability trigger가 차단 → auto_flag 실제 동작 불가.
+`pg_trigger_depth()>0` 조건으로 trigger chain 내부 자동 상태 변경만 허용, 직접 변경 차단 유지.
+
+**검증 결과**:
+- avg_rating trigger: rating 변경 → 재계산 ✅
+- follower_count trigger: INSERT/DELETE ✅
+- auto_flag submission: 신고 3건 → flagged ✅
+- auto_flag review: 신고 3건 → flagged ✅
+
+---
+
 ## live Stripe 전환 체크리스트
 
 > **블로커**: `acct_1TAQawJEx5NHulor` — `charges_enabled=false`, `details_submitted=false`  
