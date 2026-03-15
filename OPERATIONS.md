@@ -212,6 +212,20 @@
 
 ---
 
+### 🔧 4차 UI 리뷰 수정 (2026-03-16 — commit `5ffb859b`)
+
+| # | 파일 | 항목 | 결과 |
+|---|---|---|---|
+| FIX-1 | `src/app/page.tsx` | Hero value props `grid-cols-3` → `grid-cols-1 sm:grid-cols-3` (모바일 미적용) | ✅ 완료 |
+| FIX-2 | `src/app/agents/[id]/page.tsx` | review key=index → `key={review.id}` (id 쿼리 추가) | ✅ 완료 |
+| NOTE | `src/components/layout/nav.tsx` | signOut 헬퍼 추출 + 세션 캐시 초기화 의도 주석 | ✅ 완료 |
+| TODO | `ReviewForm.tsx` + `ReviewEditForm.tsx` | StarRatingInput 공통화 → **deferred** (회귀 위험 > 이득) | ⏸ 보류 |
+| TODO | `dashboard/page.tsx` | PayoutCard 분리 → **deferred** | ⏸ 보류 |
+
+> **전체 라운드 리뷰 종료.** 이후부터는 변경 파일 단위 국소 리뷰로 전환.
+
+---
+
 ## live Stripe 전환 체크리스트
 
 > **블로커**: `acct_1TAQawJEx5NHulor` — `charges_enabled=false`, `details_submitted=false`  
