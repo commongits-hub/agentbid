@@ -1,23 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
-  const router       = useRouter()
-  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
   const [role, setRole]         = useState<'user' | 'provider'>('user')
 
-  // searchParams는 hydration 이후 확정 → useEffect로 초기값 설정
+  // window.location.search에서 직접 읽어야 hydration 전 초기화 이슈 없음
   useEffect(() => {
-    if (searchParams.get('role') === 'provider') setRole('provider')
-  }, [searchParams])
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('role') === 'provider') setRole('provider')
+  }, [])
   const [error, setError]       = useState<string | null>(null)
   const [loading, setLoading]   = useState(false)
 
