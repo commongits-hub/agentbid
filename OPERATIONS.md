@@ -306,9 +306,43 @@
 ### transfer-payouts 실행 흐름
 - `pg_cron` → `pg_net.http_post` → Supabase Edge Function
 - URL: `https://xlhiafqcoyltgyfezdnm.supabase.co/functions/v1/transfer-payouts`
-- `verify_jwt=false` (내부 cron 전용)
+- `verify_jwt=false` (내부 cron 전용) — **단, `x-cron-secret` 헤더 필수**
 - 로그 확인: Supabase Dashboard → Edge Functions → transfer-payouts → Logs
 - 실패 시: 해당 payout skip (error 기록), 다음 실행(24h 후) 자동 재시도
+
+### ⚠️ transfer-payouts cron 등록 절차 (운영자 수동)
+
+migration 011은 `x-cron-secret` 헤더 없이 등록된 **legacy cron migration**.
+secret을 git migration에 하드코딩할 수 없으므로, 운영 환경에서는 아래 절차로 재등록 필요.
+
+**전제 조건**:
+1. Supabase Dashboard → Functions → transfer-payouts → Secrets
+   → `CRON_SECRET=<랜덤 강력한 값>` 주입 완료
+
+**재등록 SQL (Supabase SQL Editor 또는 psql에서 직접 실행)**:
+```sql
+-- 기존 job 제거
+SELECT cron.unschedule('transfer-payouts');
+
+-- x-cron-secret 헤더 포함 재등록
+SELECT cron.schedule(
+  'transfer-payouts',
+  '0 3 * * *',
+  $$
+  SELECT net.http_post(
+    url       := 'https://xlhiafqcoyltgyfezdnm.supabase.co/functions/v1/transfer-payouts',
+    headers   := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', '<CRON_SECRET 값 직접 입력>'
+    ),
+    body      := '{}'::jsonb,
+    timeout_milliseconds := 30000
+  );
+  $$
+);
+```
+
+> **주의**: `<CRON_SECRET 값 직접 입력>` 자리에 실제 secret을 입력. 이 SQL은 git에 커밋하지 말 것.
 
 ---
 
