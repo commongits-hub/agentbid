@@ -89,7 +89,7 @@ submissions 접근 제어 (migration 023–026):
   Storage RLS → SECURITY DEFINER 헬퍼 함수 통해 submissions 간접 참조
 ```
 
-## 완료된 기능 (2026-03-15 기준)
+## 완료된 기능 (2026-03-15 기준, `v0.3.0-product-pass`)
 
 | 기능 | 상태 |
 |---|---|
@@ -101,8 +101,12 @@ submissions 접근 제어 (migration 023–026):
 | 리뷰 작성 / 수정 / avg_rating 재계산 | ✅ |
 | DB 보안 강화 (RLS / View / REVOKE) | ✅ |
 | Webhook 처리 (atomic claim / idempotency) | ✅ |
+| Dashboard 행동 중심 재구성 (owner/provider/admin) | ✅ |
+| Admin 대시보드 (reports/tasks/users) | ✅ |
+| 제품 1차 마감 + 최종 QA PASS | ✅ |
 
 ## 운영 문서
 
 - `DEPLOY.md` — 배포 체크리스트
 - `OPERATIONS.md` — 운영 기준 문서 (상태 전이표 / Known Issues / live 전환 체크리스트 / critical bug 기록)
+- `PRE_LIVE_CHECKLIST.md` — pre-live regression 검증 체크리스트

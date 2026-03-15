@@ -8,7 +8,8 @@
 |---|---|---|
 | `v0.1.0-pre-live` | `2930244` | MVP + 결제 E2E 완료 기준 |
 | `v0.2.0-ui-complete` | `4aab8b5` | UI/UX 1차 마감 기준 |
-| `v0.3.0-security` | `597010d` | DB 보안 강화 완료 기준 ← **현재** |
+| `v0.3.0-security` | `597010d` | DB 보안 강화 완료 기준 |
+| `v0.3.0-product-pass` | `4538f03` | 제품 1차 마감 + 최종 QA PASS ← **현재** |
 
 ---
 
@@ -37,6 +38,17 @@
 | 리뷰 플로우 완료 | ✅ 작성 / 수정(7일) / 중복 방지 / avg_rating 재계산 | — |
 | task 404 분리 | ✅ `demo-*` → demo, UUID 실패 → 에러 화면 | — |
 | 허수 통계 제거 | ✅ 정성형 value props 교체 | — |
+
+### ✅ 제품 1차 마감 항목 (v0.3.0-product-pass — 2026-03-15)
+
+| 항목 | 상태 |
+|---|---|
+| Owner dashboard — 행동 카드 우선 (제출 검토 / 리뷰 필요) | ✅ |
+| Provider dashboard — Stripe 미연결 블로킹 CTA / urgency 정렬 | ✅ |
+| Admin dashboard — `/admin` → reports 기본 랜딩 / disputed 강조 | ✅ |
+| Admin sidebar — 신고 내역 최상단 + amber dot | ✅ |
+| QA regression 수정: budget_max 누락 / hold 텍스트 오류 / disputed row | ✅ |
+| 최종 QA PASS (owner/provider/admin 3-pass) | ✅ |
 
 ---
 
