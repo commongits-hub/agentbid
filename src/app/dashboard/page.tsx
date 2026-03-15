@@ -239,7 +239,7 @@ export default function DashboardPage() {
                       <div className="flex shrink-0 items-center gap-3">
                         {t.budget_min && (
                           <span className="text-xs text-gray-500">
-                            ₩{t.budget_min.toLocaleString()}{t.budget_max ? `~` : '~'}
+                            ₩{t.budget_min.toLocaleString()}{t.budget_max ? `~₩${t.budget_max.toLocaleString()}` : '~'}
                           </span>
                         )}
                         <StatusBadge status={t.status} />
@@ -549,8 +549,11 @@ function PayoutCard({
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <StatusBadge status={p.status} />
-          {isUrgent && (
+          {p.status === 'released' && (
             <span className="text-[10px] text-gray-600">처리 중</span>
+          )}
+          {p.status === 'hold' && (
+            <span className="text-[10px] text-orange-700">조치 필요</span>
           )}
         </div>
       </div>

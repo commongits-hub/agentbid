@@ -168,7 +168,7 @@ export default function AdminTasksPage() {
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">작업이 없습니다</td></tr>
               ) : (
                 tasks.map(t => (
-                  <tr key={t.id} className="hover:bg-gray-900/40 transition-colors">
+                  <tr key={t.id} className={`hover:bg-gray-900/40 transition-colors ${t.status === 'disputed' ? 'bg-red-950/10' : ''}`}>
                     <td className="max-w-xs px-4 py-3">
                       <p className="truncate text-gray-200">{t.title}</p>
                     </td>
