@@ -69,9 +69,11 @@ export default function DashboardPage() {
       if (!session) { router.push('/auth/login?returnTo=/dashboard'); return }
 
       const meta = session.user.app_metadata ?? {}
-      // role 판정: JWT payload app_metadata.app_role 단일 원본
-      // TODO: live 안정화 후 user_metadata fallback 완전 제거
-      const role = (meta.app_role ?? 'user') as string
+      // role 판정: JWT payload app_metadata.app_role 우선
+      // ⚠️ 클라이언트 SDK session.user.app_metadata는 raw_app_meta_data 기준 → hook 주입 app_role 미포함
+      // user_metadata.role fallback: 구버전 계정 및 현재 hook 미지원 계정 호환용 (DEPRECATED)
+      // TODO: server-side처럼 JWT payload 직접 디코딩으로 전환 후 fallback 제거
+      const role = (meta.app_role ?? session.user.user_metadata?.role ?? 'user') as string
       setAppRole(role)
 
       if (role === 'provider') {

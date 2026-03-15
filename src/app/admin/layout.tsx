@@ -24,8 +24,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return
       }
       const meta = session.user.app_metadata ?? {}
-      // role 판정: JWT payload app_metadata.app_role 단일 원본 (admin은 fallback 사용 금지)
-      const role = (meta.app_role ?? 'user') as string
+      // role 판정: JWT payload 직접 디코딩 (admin은 fallback 금지 — 보수적 접근)
+      // session.user.app_metadata는 raw_app_meta_data 기준 → hook 주입 app_role 미포함
+      // JWT를 직접 디코딩해야 hook 결과를 정확히 읽음
+      let role = 'user'
+      try {
+        const parts = session.access_token.split('.')
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+        role = payload.app_metadata?.app_role ?? 'user'
+      } catch {
+        // 디코딩 실패 시 비admin으로 처리
+        role = 'user'
+      }
       if (role !== 'admin') {
         router.replace('/dashboard')
         return
