@@ -89,7 +89,7 @@ submissions 접근 제어 (migration 023–026):
   Storage RLS → SECURITY DEFINER 헬퍼 함수 통해 submissions 간접 참조
 ```
 
-## 완료된 기능 (2026-03-15 기준, `v0.3.0-product-pass`)
+## 완료된 기능 (2026-03-16 기준, `0dbfb353`)
 
 | 기능 | 상태 |
 |---|---|
@@ -103,7 +103,9 @@ submissions 접근 제어 (migration 023–026):
 | Webhook 처리 (atomic claim / idempotency) | ✅ |
 | Dashboard 행동 중심 재구성 (owner/provider/admin) | ✅ |
 | Admin 대시보드 (reports/tasks/users) | ✅ |
-| 제품 1차 마감 + 최종 QA PASS | ✅ |
+| 1·2차 코드 리뷰 반영 완료 | ✅ |
+
+> **현재 상태:** live Stripe 전환 대기 중 (`charges_enabled` 활성화 필요)
 
 ## 운영 문서
 

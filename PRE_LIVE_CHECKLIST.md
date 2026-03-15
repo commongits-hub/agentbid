@@ -167,4 +167,39 @@
 
 **버그 2건 발견 → 수정 완료: migration 027 + requireAuth JWT decode fix**
 
-*마지막 업데이트: 2026-03-15 | 기준 커밋: `622e1f9`*
+---
+
+## 코드 리뷰 반영 (2026-03-15~16)
+
+### 1차 코드 리뷰 (commit `48a73e18` → `aa07bb54`)
+
+| # | 항목 | 분류 | 결과 |
+|---|---|---|---|
+| CR-01 | Storage bucket 이름 수정 (`submissions` → `submission-files`) | **Critical 버그** | ✅ FIXED |
+| CR-02 | Stripe orphan session 방지 (`session.expire()`) | 안정성 | ✅ FIXED |
+| CR-03 | webhook 단계별 상태 재조회 + row count=1 검증 | 안정성 | ✅ FIXED |
+| CR-04 | requireAuth `user_metadata.role` fallback DEPRECATED 주석 | 기술 부채 | ✅ STAGED |
+
+### 2차 UI/UX 리뷰 (commit `c415d6e0` → `0dbfb353`)
+
+| # | 항목 | 분류 | 결과 |
+|---|---|---|---|
+| UI-1 | admin layout JWT decode (`access_token` 직접 디코딩) | 구조 개선 | ✅ DONE |
+| UI-1 | dashboard `user_metadata.role` fallback DEPRECATED 유지 | 기술 부채 | ⚠️ TODO |
+| UI-2 | demo task 카드: `href='#'` 제거 + 샘플 배지 | UX | ✅ DONE |
+| UI-3 | owner orders 정렬 + 상태 시각 구분 | UX | ✅ DONE |
+| UI-4 | provider 상단 요약 4칸 분리 (hold/pending 분리) | UX | ✅ DONE |
+| UI-5 | follow 실패 피드백 (followError state) | UX | ✅ DONE |
+
+### 잔여 TODO (live 안정화 후)
+
+| # | 항목 | 우선순위 |
+|---|---|---|
+| TODO-1 | dashboard client-side role: `user_metadata.role` fallback → JWT decode 전환 | 낮음 |
+| TODO-2 | requireAuth `user_metadata.role` fallback 완전 제거 | 낮음 |
+| TODO-3 | open task 100건+ 시 `/tasks` 서버 검색/정렬 재검토 | 낮음 |
+| TODO-4 | purchase judgment logic → DB RPC 이전 | 낮음 |
+
+> **현재 상태:** 1·2차 코드 리뷰 반영 완료. live Stripe만 열리면 전환 가능.
+
+*마지막 업데이트: 2026-03-16 | 기준 커밋: `0dbfb353`*

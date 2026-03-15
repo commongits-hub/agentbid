@@ -1,6 +1,6 @@
 # AgentBid 운영 마감 문서
 
-## 현재 상태 (2026-03-15)
+## 현재 상태 (2026-03-16)
 
 ### 🏷️ 태그 기준점
 
@@ -11,7 +11,8 @@
 | `v0.3.0-security` | `597010d` | DB 보안 강화 완료 기준 |
 | `v0.3.0-product-pass` | `4538f03` | 제품 1차 마감 + 최종 QA PASS |
 | `v0.3.1-regression-pass` | `ec0eda0` | Pre-live regression 21/21 PASS |
-| `v0.3.2-smoke-test-pass` | `05b0bd1` | Test 환경 최종 smoke test PASS ← **현재** |
+| `v0.3.2-smoke-test-pass` | `619b6cc2` | Test 환경 최종 smoke test PASS |
+| _(코드 리뷰 반영)_ | `0dbfb353` | 1·2차 코드 리뷰 반영 완료 ← **현재** |
 
 ---
 
@@ -98,7 +99,7 @@
 | 정산 (payouts/connect URL/release cron) | 4 | ✅ ALL PASS |
 | DB 보안 (anon차단/view/service_role) | 3 | ✅ ALL PASS |
 
-**현재 상태: test 환경 최종 smoke test PASS — live 전환 대기 중**
+**현재 상태: 1·2차 코드 리뷰 반영 완료 — live Stripe 전환 대기 중**
 
 ---
 
@@ -142,6 +143,57 @@
 | 내용 | `user_metadata.role` fallback에 DEPRECATED 주석 추가 — 기능 유지, live 안정화 후 제거 예정 |
 
 ---
+
+### 🔧 2차 UI/UX 리뷰 수정 (2026-03-16 — commit `0dbfb353`)
+
+#### UI-1: dashboard/admin — role 판정 원본 통일
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | 코드 정리 + 구조 개선 |
+| 변경 | dashboard: `app_role` 단일 원본 기준 정리 (user_metadata.role fallback DEPRECATED 유지) |
+| 변경 | admin layout: `session.access_token` JWT 직접 디코딩 → `app_metadata.app_role` 읽기 |
+| 배경 | Supabase JS SDK `session.user.app_metadata`는 `raw_app_meta_data` 기준 — hook 주입 app_role 미포함. JWT payload 직접 디코딩이 유일한 정확한 소스. |
+| TODO | dashboard도 JWT decode로 전환 후 `user_metadata.role` fallback 완전 제거 (live 안정화 후) |
+
+#### UI-2: demo task 카드 UX
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | UX 개선 |
+| 변경 | `href='#'` 제거 → `<div>` + `cursor-default`. '샘플' 배지 추가 → 클릭 불가 시각 명시 |
+
+#### UI-3: owner orders 정렬 + 상태 시각 구분
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | UX 개선 |
+| 변경 | 미리뷰 paid → 리뷰완료 paid → 나머지 순 정렬. inactive 상태 opacity-60 처리 |
+
+#### UI-4: provider 상단 요약 4칸 분리
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | UX 개선 |
+| 변경 | 3칸 → 4칸: `정산 가능` / `보류 (조치 필요)` / `7일 대기` / `지급 완료` 분리 |
+| 효과 | "조치 필요" vs "기다리면 됨" 명확히 구분 |
+
+#### UI-5: follow 실패 피드백
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | UX 개선 |
+| 변경 | `followError` state 추가 — follow/unfollow 실패 시 버튼 아래 에러 문구 표시 |
+
+#### REGRESSION FIX: provider → Owner view 렌더링
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | 즉시 수정된 regression (UI-1 도입 후 발견) |
+| 증상 | provider 계정이 Owner view 렌더링 |
+| 원인 | `user_metadata.role` fallback 제거 후 SDK 객체에 `app_role` 없으면 `'user'` 반환 |
+| 수정 | dashboard `user_metadata.role` fallback 복원 (DEPRECATED) / admin JWT decode 전환 |
+| 검증 | production Provider 대시보드 정상 확인 |
 
 ---
 
