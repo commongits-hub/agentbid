@@ -2,8 +2,11 @@
 // POST /api/orders - 주문 생성 (task owner가 submission 선택 후 결제 시작)
 // GET  /api/orders - 본인 주문 목록 조회
 //
+// 정책: 같은 submission은 평생 1회 구매만 허용 (submission_id UNIQUE 제약)
+//   cancelled/refunded 후 재주문은 지원하지 않음
+//
 // ⚠️ 결제 생성 순서 (Stripe-first + DB 실패 시 session expire)
-//   1. 검증 (task owner, submission 상태, pending 중복 확인)
+//   1. 검증 (task owner, submission 상태, 중복 주문 확인)
 //   2. Stripe Checkout Session 생성
 //   3. DB orders 레코드 insert (pending)
 //   4. DB insert 실패 → Stripe session.expire() 즉시 호출 (orphan session 제거)
@@ -119,8 +122,8 @@ export async function POST(req: NextRequest) {
   const platformFee = Math.floor(amount * feeRate)
   const providerAmount = amount - platformFee
 
-  // 활성 주문(pending/paid) 중 최신 1개 확인 (cancelled/refunded 후 재주문 허용)
-  // maybeSingle() 미사용: 재주문 구조에서 복수 row 가능 → 배열 1개로 명확히 타겟팅
+  // 중복 주문 확인 (submission_id UNIQUE 제약 보조)
+  // 정책: 같은 submission은 평생 1회 구매. pending/paid 활성 주문 존재 시 차단.
   const { data: existingOrders } = await supabaseAdmin
     .from('orders')
     .select('id, status')
@@ -144,7 +147,6 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       )
     }
-    // cancelled/refunded 등 → 재주문 허용 (아래로 계속)
   }
 
   // ── Stripe Checkout Session 생성 ──────────────────────────────────────────

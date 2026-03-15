@@ -141,8 +141,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   if (!orderId) {
     // fallback: session_id 매칭 실패 시 아직 처리 안 된 pending order 탐색
-    // paid는 제외 — 이미 처리 완료된 주문이 혼입되면 해석이 흐려짐
-    // 재주문 구조에서 복수 row 가능 → maybeSingle() 미사용, 배열 1개로 타겟팅
+    // submission당 1회 구매 정책 — pending 상태 주문만 대상 (paid 혼입 없음)
     const { data: pendingOrders } = await supabaseAdmin
       .from('orders')
       .select('id, status')
