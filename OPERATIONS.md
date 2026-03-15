@@ -102,6 +102,47 @@
 
 ---
 
+### 🔧 1차 코드 리뷰 수정 (2026-03-15 — commit `48a73e18`)
+
+#### BUG-3: Storage bucket 이름 불일치 — **실운영 영향 있음** ⚠️
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | **Critical 코드 버그 (실운영 영향)** |
+| 증상 | 파일 첨부 submission의 download signed URL 항상 실패 |
+| 원인 | `/api/submissions/[id]/download` 에서 `.from('submissions')` 호출 — 존재하지 않는 버킷 이름 |
+| 실제 버킷 이름 | `submission-files` (Supabase Storage에 실재) |
+| 영향 | 파일형 submission download 기능 전체 비작동 (400 반환) |
+| 수정 | `.from('submission-files')` 로 변경 |
+| 검증 | `submission-files` 버킷 signed URL 생성 성공 확인 |
+
+#### FIX-4: POST /api/orders — Stripe orphan session 방지
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | 안정성 개선 |
+| 문제 | Stripe Checkout Session 생성 후 DB insert 실패 시 Stripe session만 남는 orphan 발생 가능 |
+| 제약 | `stripe_checkout_session_id` 불변 트리거로 "DB 먼저 → Stripe session update" 순서 불가 |
+| 수정 | DB insert 실패 시 `stripe.checkout.sessions.expire()` 즉시 호출 |
+| 검증 | session.expire() API 정상 동작 확인 (open → expired) |
+
+#### FIX-5: handleCheckoutCompleted — 단계별 state 재확인 + row count 검증
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | 안정성 개선 (webhook 부분실패 방어) |
+| 수정 | ① submission: 재조회 후 purchased이면 전체 완료로 즉시 return ② submission→selected: `.eq('status','submitted')` 가드 추가 ③ task: 재조회 후 already completed이면 update 스킵 ④ order→paid: `.eq('status','pending')` + row count=1 검증, 0이면 조용히 return |
+| 검증 | processed 이벤트 재전송 → claim false (처리 스킵) 확인 / 상태 불변 확인 |
+
+#### FIX-6: requireAuth — user_metadata.role fallback DEPRECATED
+
+| 항목 | 내용 |
+|---|---|
+| 분류 | 기술 부채 정리 (staged) |
+| 내용 | `user_metadata.role` fallback에 DEPRECATED 주석 추가 — 기능 유지, live 안정화 후 제거 예정 |
+
+---
+
 ---
 
 ## live Stripe 전환 체크리스트
