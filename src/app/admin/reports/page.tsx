@@ -71,7 +71,14 @@ export default function AdminReportsPage() {
       })
       const json = await res.json()
       if (!res.ok) setError(json.error ?? '오류가 발생했습니다')
-      else setReports(json.data ?? [])
+      else {
+        // pending 우선 정렬 — 운영 우선순위 기준
+        const sorted = (json.data ?? []).sort((a: AdminReport, b: AdminReport) => {
+          const order = ['pending', 'reviewed', 'resolved', 'dismissed']
+          return order.indexOf(a.status) - order.indexOf(b.status)
+        })
+        setReports(sorted)
+      }
       setLoading(false)
     })
   }, [])
@@ -118,6 +125,36 @@ export default function AdminReportsPage() {
           }`}>{actionMsg}</span>
         )}
       </div>
+
+      {/* Summary bar — 로드된 데이터 기준 */}
+      {!loading && !error && reports.length > 0 && (() => {
+        const pending  = reports.filter(r => r.status === 'pending').length
+        const reviewed = reports.filter(r => r.status === 'reviewed').length
+        return (
+          <div className="mb-6 flex gap-3">
+            {pending > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-amber-800/60 bg-amber-950/20 px-4 py-2.5">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                <span className="text-sm font-semibold text-amber-400">{pending}건</span>
+                <span className="text-xs text-amber-600">처리 대기</span>
+              </div>
+            )}
+            {reviewed > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-blue-800/60 bg-blue-950/20 px-4 py-2.5">
+                <span className="h-2 w-2 rounded-full bg-blue-400" />
+                <span className="text-sm font-semibold text-blue-400">{reviewed}건</span>
+                <span className="text-xs text-blue-600">검토 중</span>
+              </div>
+            )}
+            {pending === 0 && reviewed === 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-800/60 bg-emerald-950/20 px-4 py-2.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="text-xs text-emerald-400">미처리 신고 없음</span>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {loading && <Skeleton />}
       {error && (

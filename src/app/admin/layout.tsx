@@ -6,9 +6,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV_ITEMS = [
-  { href: '/admin/users',   label: '유저 관리' },
+  { href: '/admin/reports', label: '신고 내역', urgent: true },
   { href: '/admin/tasks',   label: '작업 목록' },
-  { href: '/admin/reports', label: '신고 내역' },
+  { href: '/admin/users',   label: '유저 관리' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -55,19 +55,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 space-y-0.5 px-3 py-4">
-          {NAV_ITEMS.map(({ href, label }) => {
+          {NAV_ITEMS.map(({ href, label, urgent }) => {
             const active = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center rounded-lg px-3 py-2 text-sm transition-colors ${
+                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors ${
                   active
                     ? 'bg-emerald-950/60 text-emerald-400 font-medium'
                     : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-50'
                 }`}
               >
-                {label}
+                <span>{label}</span>
+                {urgent && !active && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                )}
               </Link>
             )
           })}

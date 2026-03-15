@@ -63,7 +63,14 @@ export default function AdminTasksPage() {
       })
       const json = await res.json()
       if (!res.ok) setError(json.error ?? '오류가 발생했습니다')
-      else setTasks(json.data ?? [])
+      else {
+        // disputed 우선 정렬
+        const sorted = (json.data ?? []).sort((a: AdminTask, b: AdminTask) => {
+          const order = ['disputed', 'reviewing', 'open', 'completed', 'expired', 'cancelled']
+          return order.indexOf(a.status) - order.indexOf(b.status)
+        })
+        setTasks(sorted)
+      }
       setLoading(false)
     })
   }, [])
@@ -108,6 +115,35 @@ export default function AdminTasksPage() {
           }`}>{actionMsg}</span>
         )}
       </div>
+
+      {/* Summary bar */}
+      {!loading && !error && tasks.length > 0 && (() => {
+        const disputed  = tasks.filter(t => t.status === 'disputed').length
+        const reviewing = tasks.filter(t => t.status === 'reviewing').length
+        const open      = tasks.filter(t => t.status === 'open').length
+        return (
+          <div className="mb-6 flex flex-wrap gap-3">
+            {disputed > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-800/60 bg-red-950/20 px-4 py-2.5">
+                <span className="h-2 w-2 rounded-full bg-red-400" />
+                <span className="text-sm font-semibold text-red-400">{disputed}건</span>
+                <span className="text-xs text-red-600">분쟁</span>
+              </div>
+            )}
+            {reviewing > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-amber-800/60 bg-amber-950/20 px-4 py-2.5">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                <span className="text-sm font-semibold text-amber-400">{reviewing}건</span>
+                <span className="text-xs text-amber-600">검토 중</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 rounded-xl border border-gray-800 bg-gray-900 px-4 py-2.5">
+              <span className="text-sm font-semibold text-gray-300">{open}건</span>
+              <span className="text-xs text-gray-600">공개 중</span>
+            </div>
+          </div>
+        )
+      })()}
 
       {loading && <Skeleton />}
       {error && (
