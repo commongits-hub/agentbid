@@ -197,6 +197,21 @@
 
 ---
 
+### 🔧 3차 UI/UX 리뷰 수정 (2026-03-16 — commit `10d69f0e`)
+
+| # | 항목 | 처리 결과 |
+|---|---|---|
+| [1] followError state | **기존 구현 확인** — state + 버튼 아래 에러 문구 이미 존재 (102, 275번 라인) | 수정 없음 |
+| [2] getClientRole() helper 분리 | `src/lib/client-role.ts` 신규 생성, dashboard에서 import | ✅ 완료 |
+| [3] provider 4칸 요약 | **기존 구현 확인** — sm:grid-cols-4, 4개 div 이미 존재 | 수정 없음 |
+| [4] demo 판정 `startsWith('demo-')` | DEMO_TASKS id `d1/d2/d3` → `demo-1/demo-2/demo-3`, 판정식 수정 | ✅ 완료 |
+| [5] Hero CTA role param | `?role=user` / `?role=provider` 분기, signup `useEffect` + `window.location.search` | ✅ 완료 |
+| [6] tasks demo 카드 UX | 샘플 배지 + hover `🔒 로그인 후 보기`, 실제 카드 Link 구조 분리 | ✅ 완료 |
+
+**regression 수정 포함**: signup role param — `useState(initialRole)` → `useEffect + window.location.search` (Next.js App Router hydration 순서 이슈)
+
+---
+
 ## live Stripe 전환 체크리스트
 
 > **블로커**: `acct_1TAQawJEx5NHulor` — `charges_enabled=false`, `details_submitted=false`  
