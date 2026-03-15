@@ -10,7 +10,8 @@
 | `v0.2.0-ui-complete` | `4aab8b5` | UI/UX 1차 마감 기준 |
 | `v0.3.0-security` | `597010d` | DB 보안 강화 완료 기준 |
 | `v0.3.0-product-pass` | `4538f03` | 제품 1차 마감 + 최종 QA PASS |
-| `v0.3.1-regression-pass` | `ec0eda0` | Pre-live regression 21/21 PASS ← **현재** |
+| `v0.3.1-regression-pass` | `ec0eda0` | Pre-live regression 21/21 PASS |
+| `v0.3.2-smoke-test-pass` | `05b0bd1` | Test 환경 최종 smoke test PASS ← **현재** |
 
 ---
 
@@ -80,6 +81,24 @@
 | 수정 | `decodeJwtPayload()` 헬퍼 추가. `getUser()`는 서명 검증용만, `app_role/is_active`는 JWT payload에서 직접 읽음 |
 
 > ⚠️ 참고: `custom_access_token_hook`이 JWT payload에 값을 주입할 경우, 해당 값은 반드시 JWT를 직접 디코딩해서 읽어야 함. `getUser()` 반환값에는 hook 주입 클레임이 반영되지 않음.
+
+---
+
+---
+
+### ✅ Test 환경 최종 Smoke Test PASS (v0.3.2-smoke-test-pass — 2026-03-15)
+
+| 영역 | 항목 수 | 결과 |
+|---|---|---|
+| 인증 (login/role/접근제어) | 5 | ✅ ALL PASS |
+| 마켓 (tasks/상세/demo/404) | 5 | ✅ ALL PASS |
+| 거래 (submissions/webhook/checkout중복차단) | 5 | ✅ ALL PASS |
+| 리뷰/신뢰 (작성/수정/avg_rating/follow/unfollow) | 5 | ✅ ALL PASS |
+| 관리자 (task/report/user 액션) | 3 | ✅ ALL PASS |
+| 정산 (payouts/connect URL/release cron) | 4 | ✅ ALL PASS |
+| DB 보안 (anon차단/view/service_role) | 3 | ✅ ALL PASS |
+
+**현재 상태: test 환경 최종 smoke test PASS — live 전환 대기 중**
 
 ---
 
