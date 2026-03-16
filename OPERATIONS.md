@@ -685,3 +685,56 @@ GRANT SELECT ON submissions TO authenticated;
 | 040 | 021 잔여 — `cancel_payout_on_refund()` SECURITY DEFINER + public.payouts + REVOKE | ✅ |
 | 041 | 025 잔여 — `submissions_safe` task owner row filter `soft_deleted_at IS NULL` 보강 | ✅ |
 | 042 | 037 대체 — `claim_webhook_event()` 컬럼명(`type`) + `processing_started_at` + type mismatch 감지 + SECURITY DEFINER 최종 복구 | ✅ |
+
+---
+
+## Migration 001~042 최종 상태표
+
+> 기준 커밋: `f61eea6` (2026-03-16)
+
+| Migration | 내용 | 상태 |
+|---|---|---|
+| 001 | enums 생성 | ✅ 사인 |
+| 002 | users/agents 테이블 | ✅ 사인 |
+| 003 | tasks/submissions 테이블 | ✅ 사인 |
+| 004 | orders/payouts 테이블 | ✅ 사인 |
+| 005 | reviews/follows/reports 테이블 | ✅ 사인 |
+| 006 | RLS 기본 정책 | ✅ 사인 |
+| 007 | storage/cron | ✅ 사인 |
+| 008 | Stripe Connect 컬럼 | ✅ 사인 |
+| 009 | payout guard | ✅ 사인 |
+| 010 | budget 컬럼 추가 | ✅ 사인 |
+| 011 | transfer-payouts cron | ✅ 사인 |
+| 012 | webhook processing lock | ✅ 사인 |
+| 013 | access token hook (중간 이행) | ⚠️ 단독 배포 불가 — 014+034와 묶음 기준 사인 |
+| 014 | claims.role 오버라이드 제거 | ✅ 사인 (034 묶음) |
+| 015 | RLS hardening phase 1 | ✅ 사인 (018+031+039 묶음) |
+| 016 | payout guard hardening | ✅ 사인 (019+020 묶음) |
+| 017 | RLS hardening phase 2 | ✅ 사인 (018+031 묶음) |
+| 018 | column immutability + state transition | ✅ 사인 (019+020+021 묶음) |
+| 019 | financial integrity finalization | ✅ 사인 (020 묶음) |
+| 020 | transition integrity finalization | ✅ 사인 |
+| 021 | transition allowlist critical fixes | ✅ 사인 (040 묶음) |
+| 022 | webhook lock hardening | ✅ 사인 |
+| 023 | submissions_safe view (security_invoker) | ✅ 사인 (025 묶음) |
+| 024 | REVOKE submissions direct select | ✅ 사인 (025+026 묶음) |
+| 025 | submissions_safe security_definer 전환 | ✅ 사인 (041 묶음) |
+| 026 | storage RLS SECURITY DEFINER 헬퍼 | ✅ 사인 |
+| 027 | follower_count SECURITY DEFINER | ✅ 사인 (030 묶음) |
+| 028 | handle_new_user/sync_user_email search_path + submission_count DELETE | ✅ 사인 |
+| 029 | orders same-submission 1회 구매 정책 명시 | ✅ 사인 |
+| 030 | trigger 함수 SECURITY DEFINER 일괄 보강 | ✅ 사인 |
+| 031 | prevent_submission_manipulation trigger chain bypass | ✅ 사인 |
+| 032 | prevent_review_manipulation trigger chain bypass | ✅ 사인 |
+| 033 | 006 정책 의도 주석 (구조 변경 없음) | ✅ 사인 |
+| 034 | access token hook search_path + cron idempotency | ✅ 사인 |
+| 035 | Stripe Connect 주석 (구조 변경 없음) | ✅ 사인 |
+| 036 | payout guard SECURITY DEFINER 최종 보강 | ✅ 사인 |
+| 037 | ❌ 회귀 — `event_type` 오기 + 022 보강 소실 | **사인 불가 — 042로 대체** |
+| 038 | 013 이력 주석 (구조 변경 없음) | ✅ 사인 |
+| 039 | agents immutability 트리거 + tasks_update 정책 분리 | ✅ 사인 |
+| 040 | cancel_payout_on_refund SECURITY DEFINER 보강 | ✅ 사인 |
+| 041 | submissions_safe soft_deleted task owner 조건 보강 | ✅ 사인 |
+| 042 | claim_webhook_event 037 회귀 수정 + 022 보강 재통합 | ✅ 사인 |
+
+**037은 사인 불가. 042가 037을 대체하며 전체 chain은 042 기준으로 완결.**
