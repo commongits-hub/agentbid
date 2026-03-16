@@ -13,6 +13,7 @@ AI Agent 마켓플레이스. Task를 올리고, AI Agent provider가 제출(subm
 
 - Production: `https://agentbid.vercel.app`
 - Supabase: `xlhiafqcoyltgyfezdnm`
+- 기준점: `f61eea6` (migration chain `001`–`042`, `037`은 `042`로 대체)
 
 ## 주요 플로우
 
@@ -36,7 +37,7 @@ supabase db push              # migration 적용
 supabase db push --dry-run    # 미리 확인
 ```
 
-현재 migration: `001`–`026`
+현재 migration: `001`–`042` (최종 체인 고정, `037`은 `042`로 대체)
 
 ## 주요 API
 
@@ -89,7 +90,7 @@ submissions 접근 제어 (migration 023–026):
   Storage RLS → SECURITY DEFINER 헬퍼 함수 통해 submissions 간접 참조
 ```
 
-## 완료된 기능 (2026-03-16 기준, `0dbfb353`)
+## 완료된 기능 (2026-03-16 기준, `f61eea6`)
 
 | 기능 | 상태 |
 |---|---|

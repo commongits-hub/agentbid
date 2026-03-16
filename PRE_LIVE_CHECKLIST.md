@@ -1,7 +1,7 @@
 # AgentBid — Pre-Live Regression Checklist
 
-> 기준: `v0.3.0-product-pass` (commit `4538f03`)  
-> 환경: Supabase `xlhiafqcoyltgyfezdnm` (test mode)  
+> 기준: `f61eea6` (migration chain 042 완결)  
+> 환경: Supabase `xlhiafqcoyltgyfezdnm` (test mode, live 미전환)  
 > live Stripe 항목은 `[LIVE ONLY]` 표시 — 나머지는 현재 test 환경에서 검증 가능
 
 ---

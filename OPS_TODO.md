@@ -30,14 +30,13 @@
 
 ---
 
-## 🟢 live 안정화 후 (낮은 우선순위 — 즉시 필요 없음)
+## 🟢 live 안정화 후 (운영 항목만)
 
 | # | 항목 | 내용 |
 |---|---|---|
-| B-01 | dashboard client-side role fallback 제거 | `user_metadata.role` fallback → JWT decode 전환 (현재 DEPRECATED 주석 처리됨) |
-| B-02 | requireAuth user_metadata fallback 제거 | live 안정화 후 `?? userMeta.role` 제거 |
-| B-03 | `/tasks` 서버 검색/정렬 전환 | open task 100건+ 시 클라이언트 필터 → 서버 쿼리 전환 재검토 |
-| B-04 | hold 누적 모니터링 | `release_matured_payouts` NOTICE 로그 외 운영 알림 강화 검토 |
+| B-01 | hold 누적 모니터링 강화 | `release_matured_payouts` NOTICE 기반 수동 확인 → 알림/대시보드 지표로 승격 검토 |
+| B-02 | stale webhook lock 정기 점검 | `reset_stale_webhook_claims()` 실행 결과(해제 row 수) 주간 점검 |
+| B-03 | test 데이터 정리 주기 | test mode orders/payouts/reports 주기 정리 및 기준 샘플 계정 유지 |
 
 ---
 

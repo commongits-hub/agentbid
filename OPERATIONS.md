@@ -12,7 +12,8 @@
 | `v0.3.0-product-pass` | `4538f03` | 제품 1차 마감 + 최종 QA PASS |
 | `v0.3.1-regression-pass` | `ec0eda0` | Pre-live regression 21/21 PASS |
 | `v0.3.2-smoke-test-pass` | `619b6cc2` | Test 환경 최종 smoke test PASS |
-| _(코드 리뷰 반영)_ | `0dbfb353` | 1·2차 코드 리뷰 반영 완료 ← **현재** |
+| _(코드 리뷰 반영)_ | `0dbfb353` | 1·2차 코드 리뷰 반영 완료 (히스토리) |
+| _(migration chain 고정)_ | `f61eea6` | 001~042 체인 확정 (`037` 사인 불가, `042` 대체) ← **현재 기준점** |
 
 ---
 
@@ -405,7 +406,7 @@ SELECT cron.schedule(
 
 ## DB 보안 강화 기록 (migrations 015–026)
 
-### 최신 커밋: `eea46a4` (migration 026)
+### 스냅샷 기준 커밋: `eea46a4` (migration 026, 히스토리 섹션)
 
 ### 상태 전이표 (DB 코드 공식 버전 — migration 021 기준)
 
