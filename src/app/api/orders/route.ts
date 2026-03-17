@@ -16,6 +16,8 @@
 //   현재 순서를 유지하되 실패 시 세션을 정리하는 방식으로 orphan 방지.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { requireAuth } from '@/middleware/auth'
 import { supabaseAdmin, createServerClientWithAuth } from '@/lib/supabase/server'
 import Stripe from 'stripe'
@@ -29,9 +31,24 @@ export async function GET(req: NextRequest) {
   const auth = await requireAuth(req)
   if ('error' in auth) return auth.error
 
-  const supabase = createServerClientWithAuth(
-    req.headers.get('authorization')?.replace('Bearer ', '') ?? '',
-  )
+  // Bearer 있으면 JWT 기반 client, 없으면 cookie 기반 client (SSR 세션)
+  const bearerToken = req.headers.get('authorization')?.replace('Bearer ', '')
+  let supabase
+  if (bearerToken) {
+    supabase = createServerClientWithAuth(bearerToken)
+  } else {
+    const cookieStore = await cookies()
+    supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cs) { cs.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) },
+        },
+      },
+    )
+  }
 
   const { data, error } = await supabase
     .from('orders')
@@ -82,6 +99,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (!['open', 'reviewing'].includes(task.status)) {
+    // 구매 허용 상태: 'open'(제안 수락 중) + 'reviewing'(선택 검토 중)
+    // 'reviewing' 포함 이유: submission.status='submitted'인 제안을 선택하는 단계이므로 결제 진입 허용
+    // 단, selected/completed/expired 전이 후에는 이 조건으로 차단됨
     return NextResponse.json(
       { error: 'Task is not in a selectable state' },
       { status: 422 },
@@ -143,7 +163,7 @@ export async function POST(req: NextRequest) {
     }
     if (existingOrder.status === 'pending') {
       return NextResponse.json(
-        { error: 'A pending order already exists for this task', order_id: existingOrder.id },
+        { error: 'A pending order already exists for this submission', order_id: existingOrder.id },
         { status: 409 },
       )
     }
@@ -176,6 +196,8 @@ export async function POST(req: NextRequest) {
         submission_id,
         user_id: auth.user.id,
       },
+      // success_url은 `/orders/[sessionId]/success` 라우트와 1:1 결합.
+      // URL 구조 변경 시 이 값도 함께 수정 필요.
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/orders/{CHECKOUT_SESSION_ID}/success`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/tasks/${task_id}`,
     })
