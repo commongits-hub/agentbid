@@ -41,7 +41,8 @@ export function ReviewForm({ orderId, onSuccess }: Props) {
       body: JSON.stringify({ order_id: orderId, rating, content }),
     })
 
-    const data = await res.json()
+    let data: any = null
+    try { data = await res.json() } catch {}
     setLoading(false)
 
     if (!res.ok) {
@@ -64,7 +65,9 @@ export function ReviewForm({ orderId, onSuccess }: Props) {
             <span key={i} className={`text-lg ${i < rating ? 'text-amber-400' : 'text-gray-700'}`}>★</span>
           ))}
         </div>
-        <p className="mt-2 text-xs text-gray-400 italic">"{content}"</p>
+        <p className="mt-2 text-xs text-gray-400 italic line-clamp-2">
+          "{content.length > 120 ? content.slice(0, 120) + '…' : content}"
+        </p>
       </div>
     )
   }

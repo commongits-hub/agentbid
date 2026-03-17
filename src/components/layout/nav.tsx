@@ -11,21 +11,23 @@ export function Nav() {
   const [email, setEmail]       = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  // 세션 캐시 완전 초기화 목적 — router.push로 교체 금지 (캐시 잔존 방지)
+  // client 인스턴스 1개 — effect, signOut 공유
+  const supabase = createClient()
+
   async function handleSignOut() {
-    await createClient().auth.signOut()
+    await supabase.auth.signOut()
     window.location.href = '/'
   }
 
   useEffect(() => {
-    const sb = createClient()
-    sb.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setEmail(session?.user.email ?? null)
     })
-    const { data: { subscription } } = sb.auth.onAuthStateChange((_, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
       setEmail(s?.user.email ?? null)
     })
     return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 경로 바뀌면 메뉴 닫기
@@ -79,7 +81,8 @@ export function Nav() {
         <button
           onClick={() => setMenuOpen(v => !v)}
           className="flex items-center justify-center rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-800 hover:text-gray-100 sm:hidden"
-          aria-label="메뉴 열기"
+          aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
+          aria-expanded={menuOpen}
         >
           {menuOpen ? (
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

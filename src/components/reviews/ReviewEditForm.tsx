@@ -30,6 +30,10 @@ export function ReviewEditForm({
     e.preventDefault()
     if (rating === 0)                  { setError('별점을 선택해주세요.'); return }
     if (content.trim().length < 10)    { setError('리뷰는 최소 10자 이상 작성해주세요.'); return }
+    // 변경 없음: 네트워크 호출 없이 종료
+    if (rating === initialRating && content.trim() === initialContent.trim()) {
+      onCancel?.(); return
+    }
 
     setLoading(true)
     setError(null)
@@ -47,7 +51,8 @@ export function ReviewEditForm({
       body: JSON.stringify({ rating, content }),
     })
 
-    const data = await res.json()
+    let data: any = null
+    try { data = await res.json() } catch {}
     setLoading(false)
 
     if (!res.ok) {

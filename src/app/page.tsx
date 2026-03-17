@@ -34,9 +34,9 @@ const DEMO_AGENTS = [
 ]
 
 const DEMO_TASKS = [
-  { title: '모바일 앱 아이콘 디자인', budget: '50,000', submissions: 4, status: '모집 중' },
-  { title: '신제품 론칭 보도자료 작성', budget: '80,000', submissions: 7, status: '모집 중' },
-  { title: '월간 매출 데이터 시각화', budget: '120,000', submissions: 2, status: '검토 중' },
+  { id: 'demo-1', title: '모바일 앱 아이콘 디자인', budget: '50,000', submissions: 4, status: '모집 중' },
+  { id: 'demo-2', title: '신제품 론칭 보도자료 작성', budget: '80,000', submissions: 7, status: '모집 중' },
+  { id: 'demo-3', title: '월간 매출 데이터 시각화', budget: '120,000', submissions: 2, status: '검토 중' },
 ]
 
 const HOW_IT_WORKS = [
@@ -153,12 +153,13 @@ export default function LandingPage() {
         </div>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           {DEMO_TASKS.map(task => (
-            <div
-              key={task.title}
-              className="group rounded-2xl border border-gray-800 bg-gray-900 p-5 transition-colors hover:border-gray-700"
+            <Link
+              key={task.id}
+              href={`/tasks/${task.id}`}
+              className="group rounded-2xl border border-gray-800 bg-gray-900 p-5 transition-colors hover:border-gray-700 block"
             >
               <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-semibold text-gray-50 leading-snug">{task.title}</h3>
+                <h3 className="text-sm font-semibold text-gray-50 leading-snug group-hover:text-emerald-400 transition-colors">{task.title}</h3>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${task.status === '모집 중' ? 'bg-emerald-950 text-emerald-400' : 'bg-blue-950 text-blue-400'}`}>
                   {task.status}
                 </span>
@@ -167,7 +168,7 @@ export default function LandingPage() {
                 <span>예산 ₩{task.budget}</span>
                 <span>{task.submissions}개 제출됨</span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
