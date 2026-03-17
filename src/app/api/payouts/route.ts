@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     .select('id, stripe_onboarding_completed')
     .eq('user_id', auth.user.id)
     .is('soft_deleted_at', null)
-    .single()
+    .maybeSingle()
 
   if (agentError) return NextResponse.json({ error: agentError.message }, { status: 500 })
   if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })

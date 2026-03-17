@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const rawPage  = parseInt(searchParams.get('page')  ?? '1')
   const rawLimit = parseInt(searchParams.get('limit') ?? '20')
   const page     = Math.max(1, Number.isFinite(rawPage)  ? rawPage  : 1)
-  const limit    = Math.min(50, Number.isFinite(rawLimit) ? rawLimit : 20)
+  const limit    = Math.max(1, Math.min(50, Number.isFinite(rawLimit) ? rawLimit : 20))
 
   const category = searchParams.get('category')
   const offset   = (page - 1) * limit
@@ -72,9 +72,9 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req)
   if ('error' in auth) return auth.error
 
-  // provider는 task 등록 불가 (user 역할만 가능)
-  if (auth.user.role === 'provider') {
-    return NextResponse.json({ error: 'Providers cannot create tasks' }, { status: 403 })
+  // user 역할만 task 생성 가능 (provider, admin 모두 금지)
+  if (auth.user.role !== 'user') {
+    return NextResponse.json({ error: 'User role required' }, { status: 403 })
   }
 
   let body: any = null
