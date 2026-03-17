@@ -25,9 +25,11 @@ export async function PATCH(
     .from('tasks')
     .update({ status: body.status })
     .eq('id', id)
+    .is('soft_deleted_at', null)   // 삭제된 task 변경 차단
     .select('id, title, status')
-    .single()
+    .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
   return NextResponse.json({ data })
 }

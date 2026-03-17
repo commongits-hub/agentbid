@@ -21,9 +21,10 @@ export async function PATCH(
     return NextResponse.json({ error: `허용 상태: ${ALLOWED_STATUSES.join(', ')}` }, { status: 400 })
   }
 
-  const updatePayload: { status: ReportStatus; admin_note?: string } = { status: body.status }
+  const updatePayload: { status: ReportStatus; admin_note?: string | null } = { status: body.status }
   if (typeof body.admin_note === 'string') {
-    updatePayload.admin_note = body.admin_note.trim() || undefined
+    // 빈 문자열 → null (기존 메모 clear 명시적 처리)
+    updatePayload.admin_note = body.admin_note.trim() || null
   }
 
   const { data, error } = await supabaseAdmin
@@ -31,8 +32,9 @@ export async function PATCH(
     .update(updatePayload)
     .eq('id', id)
     .select('id, status, admin_note')
-    .single()
+    .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
   return NextResponse.json({ data })
 }

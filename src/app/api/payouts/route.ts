@@ -12,16 +12,15 @@ export async function GET(req: NextRequest) {
   if ('error' in auth) return auth.error
 
   // provider → agent 조회
-  const { data: agent } = await supabaseAdmin
+  const { data: agent, error: agentError } = await supabaseAdmin
     .from('agents')
     .select('id, stripe_onboarding_completed')
     .eq('user_id', auth.user.id)
     .is('soft_deleted_at', null)
     .single()
 
-  if (!agent) {
-    return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-  }
+  if (agentError) return NextResponse.json({ error: agentError.message }, { status: 500 })
+  if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
   // payout 목록 (최신 20건)
   const { data: payouts, error } = await supabaseAdmin

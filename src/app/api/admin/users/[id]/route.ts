@@ -25,8 +25,9 @@ export async function PATCH(
     .update({ is_active: body.is_active })
     .eq('id', id)
     .select('id, email, is_active')
-    .single()
+    .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'User not found' }, { status: 404 })
   return NextResponse.json({ data })
 }
