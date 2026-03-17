@@ -100,11 +100,19 @@ export default function AdminReportsPage() {
     if (!res.ok) {
       setActionMsg(`❌ ${json.error}`)
     } else {
-      setReports(prev => prev.map(r =>
-        r.id === confirm.reportId
-          ? { ...r, status: confirm.nextStatus, admin_note: adminNote || r.admin_note }
-          : r
-      ))
+      const ORDER = ['pending', 'reviewed', 'resolved', 'dismissed']
+      setReports(prev => {
+        const updated = prev.map(r =>
+          r.id === confirm.reportId
+            ? { ...r, status: confirm.nextStatus, admin_note: adminNote || r.admin_note }
+            : r
+        )
+        // 상태 변경 후 재정렬 (pending 우선)
+        return updated.sort((a, b) => {
+          const ai = ORDER.indexOf(a.status); const bi = ORDER.indexOf(b.status)
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+        })
+      })
       setActionMsg(`✓ 신고 상태 → ${STATUS_LABELS[confirm.nextStatus]}`)
     }
     setTimeout(() => setActionMsg(null), 3000)

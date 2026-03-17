@@ -44,7 +44,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) return
+      if (!session) { setLoading(false); return }
       setToken(session.access_token)
       const res = await fetch('/api/admin/users', {
         headers: { Authorization: `Bearer ${session.access_token}` },

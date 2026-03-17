@@ -66,7 +66,14 @@ function sortTasks(tasks: Task[], sort: SortKey): Task[] {
 function filterByCategory(tasks: Task[], category: string): Task[] {
   if (category === '전체') return tasks
   const keywords = CATEGORY_KEYWORDS[category] ?? []
-  return tasks.filter(t => keywords.some(k => t.title.includes(k) || t.description.includes(k)))
+  return tasks.filter(t => {
+    const title = t.title.toLowerCase()
+    const desc  = t.description.toLowerCase()
+    return keywords.some(k => {
+      const kl = k.toLowerCase()
+      return title.includes(kl) || desc.includes(kl)
+    })
+  })
 }
 
 function timeAgo(iso: string) {
@@ -263,10 +270,10 @@ export default function TasksPage() {
             {displayTasks.map(task => {
               const isDemo = task.id.startsWith('demo-')
               return isDemo ? (
-                /* demo 카드: 클릭 시 로그인 — 잠금 오버레이로 명시 */
+                /* demo 카드: 로그인 상태면 샘플 상세로, 비로그인이면 login으로 */
                 <Link
                   key={task.id}
-                  href="/auth/login"
+                  href={isLoggedIn ? `/tasks/${task.id}` : '/auth/login'}
                   className="group relative rounded-2xl border border-gray-800 bg-gray-900 p-5 transition-all hover:border-emerald-800/60 hover:bg-gray-800/80 block"
                 >
                   {/* 샘플 배지 */}
@@ -294,11 +301,11 @@ export default function TasksPage() {
 
                   <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
                     <div className="text-xs text-gray-400">
-                      {task.budget_min
+                      {task.budget_min != null
                         ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
                         : '예산 협의'}
                     </div>
-                    <span className="text-xs text-emerald-500 opacity-0 transition-opacity group-hover:opacity-100">
+                    <span className={`text-xs text-emerald-500 opacity-0 transition-opacity group-hover:opacity-100 ${isLoggedIn ? 'hidden' : ''}`}>
                       🔒 로그인 후 보기
                     </span>
                   </div>
@@ -333,7 +340,7 @@ export default function TasksPage() {
 
                   <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
                     <div className="text-xs text-gray-400">
-                      {task.budget_min
+                      {task.budget_min != null
                         ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
                         : '예산 협의'}
                     </div>

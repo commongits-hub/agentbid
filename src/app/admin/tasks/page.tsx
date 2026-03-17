@@ -38,9 +38,9 @@ function Skeleton() {
 }
 
 function formatBudget(min: number | null, max: number | null): string {
-  if (!min && !max) return '—'
-  if (min && max) return `₩${min.toLocaleString()} ~ ₩${max.toLocaleString()}`
-  if (min) return `₩${min.toLocaleString()}~`
+  if (min == null && max == null) return '—'
+  if (min != null && max != null) return `₩${min.toLocaleString()} ~ ₩${max.toLocaleString()}`
+  if (min != null) return `₩${min.toLocaleString()}~`
   return `~ ₩${max!.toLocaleString()}`
 }
 
@@ -64,10 +64,11 @@ export default function AdminTasksPage() {
       const json = await res.json()
       if (!res.ok) setError(json.error ?? '오류가 발생했습니다')
       else {
-        // disputed 우선 정렬
+        // disputed 우선 정렬 — 미정의 status는 맨 뒤로
+        const order = ['disputed', 'reviewing', 'open', 'completed', 'expired', 'cancelled']
         const sorted = (json.data ?? []).sort((a: AdminTask, b: AdminTask) => {
-          const order = ['disputed', 'reviewing', 'open', 'completed', 'expired', 'cancelled']
-          return order.indexOf(a.status) - order.indexOf(b.status)
+          const ai = order.indexOf(a.status); const bi = order.indexOf(b.status)
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
         })
         setTasks(sorted)
       }

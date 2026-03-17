@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getClientRole } from '@/lib/client-role'
 
 const NAV_ITEMS = [
   { href: '/admin/reports', label: '신고 내역', urgent: true },
@@ -23,19 +24,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         router.replace('/auth/login?returnTo=/admin')
         return
       }
-      const meta = session.user.app_metadata ?? {}
-      // role 판정: JWT payload 직접 디코딩 (admin은 fallback 금지 — 보수적 접근)
-      // session.user.app_metadata는 raw_app_meta_data 기준 → hook 주입 app_role 미포함
-      // JWT를 직접 디코딩해야 hook 결과를 정확히 읽음
-      let role = 'user'
-      try {
-        const parts = session.access_token.split('.')
-        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-        role = payload.app_metadata?.app_role ?? 'user'
-      } catch {
-        // 디코딩 실패 시 비admin으로 처리
-        role = 'user'
-      }
+      // role 판정: getClientRole() helper 사용 (JWT payload decode 포함)
+      // admin은 fallback 금지 → 비admin은 즉시 redirect
+      const role = getClientRole(session)
       if (role !== 'admin') {
         router.replace('/dashboard')
         return
