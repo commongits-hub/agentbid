@@ -97,40 +97,51 @@ export default function TaskDetailPage() {
         const res = await fetch(`/api/submissions?task_id=${taskId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
-        const data = await res.json()
-        const subs: Submission[] = data.data ?? []
-        setSubs(subs)
-
-        // agent 요약 (평점 + 완료수 + 최근 리뷰) 조회
-        const agentIds = [...new Set(subs.map(s => s.agent_id))].filter(Boolean)
-        if (agentIds.length > 0) {
-          const { data: agentRows } = await supabase
-            .from('agents')
-            .select('id, name, avg_rating, completed_count')
-            .in('id', agentIds)
-
-          const agentMap: Record<string, AgentSummary> = {}
-          for (const a of agentRows ?? []) {
-            agentMap[a.id] = { id: a.id, name: a.name, avg_rating: a.avg_rating, completed_count: a.completed_count, recentReviews: [] }
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            setTaskError('server_error')
+            setLoading(false)
+            return
           }
+          // 그 외 에러는 빈 배열로 처리하되 콘솔 기록
+          console.error(`GET /api/submissions failed: ${res.status}`)
+        } else {
+          const data = await res.json()
+          const subs: Submission[] = data.data ?? []
+          setSubs(subs)
 
-          // 최근 리뷰 일괄 조회
-          const { data: reviewRows } = await supabase
-            .from('reviews')
-            .select('agent_id, rating, content, created_at')
-            .in('agent_id', agentIds)
-            .eq('status', 'published')
-            .order('created_at', { ascending: false })
-            .limit(agentIds.length * 2)
+          // agent 요약 (평점 + 완료수 + 최근 리뷰) 조회
+          const agentIds = [...new Set(subs.map(s => s.agent_id))].filter(Boolean)
+          if (agentIds.length > 0) {
+            const { data: agentRows } = await supabase
+              .from('agents')
+              .select('id, name, avg_rating, completed_count')
+              .in('id', agentIds)
 
-          for (const r of reviewRows ?? []) {
-            if (agentMap[r.agent_id] && agentMap[r.agent_id].recentReviews.length < 2) {
-              agentMap[r.agent_id].recentReviews.push({ rating: r.rating, content: r.content, created_at: r.created_at })
+            const agentMap: Record<string, AgentSummary> = {}
+            for (const a of agentRows ?? []) {
+              agentMap[a.id] = { id: a.id, name: a.name, avg_rating: a.avg_rating, completed_count: a.completed_count, recentReviews: [] }
             }
+
+            // 최근 리뷰 일괄 조회
+            // TODO: agent별 최근 2개 보장 불가 — 첫 agent 리뷰가 많으면 뒤 agent는 0개로 보일 수 있음
+            // 정확히 하려면 agent별 개별 조회 또는 RPC/view 필요
+            const { data: reviewRows } = await supabase
+              .from('reviews')
+              .select('agent_id, rating, content, created_at')
+              .in('agent_id', agentIds)
+              .eq('status', 'published')
+              .order('created_at', { ascending: false })
+              .limit(agentIds.length * 2)
+
+            for (const r of reviewRows ?? []) {
+              if (agentMap[r.agent_id] && agentMap[r.agent_id].recentReviews.length < 2) {
+                agentMap[r.agent_id].recentReviews.push({ rating: r.rating, content: r.content, created_at: r.created_at })
+              }
+            }
+            setAgents(agentMap)
           }
-          setAgents(agentMap)
         }
-      }
       setLoading(false)
     }
     load()
@@ -201,7 +212,8 @@ export default function TaskDetailPage() {
   if (!task) return null
   const isOwner    = myUserId === task.user_id
   const isLoggedIn = !!myUserId
-  const canBuy     = isOwner && task.status === 'open'
+  // canBuy: orders/route.ts 정책과 일치 — open + reviewing 모두 허용
+  const canBuy     = isOwner && ['open', 'reviewing'].includes(task.status)
 
   const submittedSubs  = submissions.filter(s => s.status === 'submitted')
   const purchasedSub   = submissions.find(s => s.status === 'purchased')

@@ -106,6 +106,7 @@ export default function AgentDetailPage() {
   useEffect(() => {
     if (!agentId) return
     const supabase = createClient()
+    let cancelled = false
 
     async function load() {
       // 1. Agent
@@ -115,6 +116,8 @@ export default function AgentDetailPage() {
         .eq('id', agentId)
         .is('soft_deleted_at', null)
         .single()
+
+      if (cancelled) return
 
       if (agentError || !agentData) {
         setNotFound(true)
@@ -132,6 +135,7 @@ export default function AgentDetailPage() {
         .order('created_at', { ascending: false })
         .limit(5)
 
+      if (cancelled) return
       setReviews((reviewData as Review[]) ?? [])
 
       // 3. Auth session → follow check
@@ -147,13 +151,16 @@ export default function AgentDetailPage() {
           .eq('follower_id', uid)
           .maybeSingle()
 
+        if (cancelled) return
         setIsFollowing(!!followRow)
       }
 
+      if (cancelled) return
       setLoading(false)
     }
 
     load()
+    return () => { cancelled = true }
   }, [agentId])
 
   // ── Follow toggle ──────────────────────────────────────────

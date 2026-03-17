@@ -99,6 +99,8 @@ export default function DashboardPage() {
 
         const paidOrders = orderList.filter(o => o.status === 'paid')
         if (paidOrders.length > 0) {
+          // TODO: N+1 — paid order 수만큼 API 호출 발생
+          // /api/reviews에 order_id IN (...) 배치 조회 엔드포인트 추가 필요
           const reviewChecks = await Promise.all(
             paidOrders.map(o =>
               fetch(`/api/reviews?order_id=${o.id}`, {
@@ -116,7 +118,7 @@ export default function DashboardPage() {
       setLoading(false)
     }
     init()
-  }, [])
+  }, [router])
 
   if (loading) {
     return (
@@ -241,7 +243,7 @@ export default function DashboardPage() {
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
-                        {t.budget_min && (
+                        {t.budget_min != null && (
                           <span className="text-xs text-gray-500">
                             ₩{t.budget_min.toLocaleString()}{t.budget_max ? `~₩${t.budget_max.toLocaleString()}` : '~'}
                           </span>
