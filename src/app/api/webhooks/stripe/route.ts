@@ -76,20 +76,20 @@ export async function POST(req: NextRequest) {
         break
     }
 
-    // 4. 처리 완료 표시 (processing=false, processed=true)
+    // 4. 처리 완료 표시 (processed=true, processing=false, processing_started_at 정리)
     await supabaseAdmin
       .from('stripe_webhook_events')
-      .update({ processed: true, processing: false })
+      .update({ processed: true, processing: false, processing_started_at: null })
       .eq('id', event.id)
 
     return NextResponse.json({ received: true })
 
   } catch (err: any) {
     console.error(`Webhook handler error [${event.type}]:`, err.message)
-    // processing=false 해제 → Stripe 재전송 시 재시도 허용
+    // processing=false + processing_started_at 정리 → Stripe 재전송 시 재시도 허용
     await supabaseAdmin
       .from('stripe_webhook_events')
-      .update({ processing: false })
+      .update({ processing: false, processing_started_at: null })
       .eq('id', event.id)
     return NextResponse.json({ error: 'Handler failed' }, { status: 500 })
   }
@@ -244,10 +244,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   // ── 5. submission → purchased (원본 공개) ──────────────────────────────────
+  // 상태 가드: selected 상태인 경우에만 update (step 2에서 selected로 전환됨)
   const { error: purchaseError } = await supabaseAdmin
     .from('submissions')
     .update({ status: 'purchased' })
     .eq('id', submission_id)
+    .eq('status', 'selected')   // selected → purchased 전이만 허용
   if (purchaseError) throw new Error(`Failed to mark submission as purchased: ${purchaseError.message}`)
 }
 

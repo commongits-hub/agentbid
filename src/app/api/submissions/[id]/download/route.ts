@@ -42,6 +42,15 @@ export async function GET(
     return NextResponse.json({ error: 'No file attached to this submission' }, { status: 422 })
   }
 
+  // 2-B. submission 상태 가드: purchased 상태만 다운로드 허용
+  // paid order가 있더라도 상태가 비정상이면 차단
+  if (submission.status !== 'purchased') {
+    return NextResponse.json(
+      { error: 'Submission is not available for download' },
+      { status: 422 },
+    )
+  }
+
   // 3. 결제 확인: 이 submission에 대해 caller가 paid order를 보유하는지
   const { data: paidOrder } = await supabaseAdmin
     .from('orders')

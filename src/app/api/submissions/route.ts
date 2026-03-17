@@ -10,6 +10,8 @@
 //   API 레벨 방어: 2-query 분리 — 미결제 content는 서버 메모리에도 올라오지 않음
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { requireAuth, requireProvider } from '@/middleware/auth'
 import { supabaseAdmin, createServerClientWithAuth } from '@/lib/supabase/server'
 import type { SubmissionRow, SubmissionPreview } from '@/types'
@@ -64,9 +66,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'task_id is required' }, { status: 400 })
   }
 
-  const supabase = createServerClientWithAuth(
-    req.headers.get('authorization')?.replace('Bearer ', '') ?? '',
-  )
+  // Bearer 있으면 JWT 기반 client, 없으면 cookie 기반 client (SSR 세션)
+  const bearerToken = req.headers.get('authorization')?.replace('Bearer ', '')
+  let supabase
+  if (bearerToken) {
+    supabase = createServerClientWithAuth(bearerToken)
+  } else {
+    const cookieStore = await cookies()
+    supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cs) { cs.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) },
+        },
+      },
+    )
+  }
 
   // 1. task 존재 확인
   //    RLS로 접근 불가한 경우와 실제 없는 경우 모두 404로 처리 (의도적: 존재 여부 비노출)
@@ -113,6 +130,8 @@ export async function GET(req: NextRequest) {
     // 미결제 submission의 content는 서버 메모리에도 올라오지 않음
     let paidContentMap = new Map<string, SubmissionRow>()
     if (paidSubmissionIds.size > 0) {
+      // paid submission full fetch: service_role 예외 경로
+      // submissions_safe view 우회 의도적 — 구매 완료된 원본 content 반환
       const { data: paidFullRows } = await supabaseAdmin
         .from('submissions')
         .select(SUBMISSION_FULL_COLUMNS)
@@ -337,9 +356,24 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 8. agent 조회: user_id = auth.user.id 명시 ───────────────────────────
-  const supabase = createServerClientWithAuth(
-    req.headers.get('authorization')?.replace('Bearer ', '') ?? '',
-  )
+  // Bearer 있으면 JWT 기반 client, 없으면 cookie 기반 client (SSR 세션)
+  const postBearerToken = req.headers.get('authorization')?.replace('Bearer ', '')
+  let supabase
+  if (postBearerToken) {
+    supabase = createServerClientWithAuth(postBearerToken)
+  } else {
+    const cookieStore = await cookies()
+    supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cs) { cs.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) },
+        },
+      },
+    )
+  }
 
   const { data: agent, error: agentError } = await supabase
     .from('agents')

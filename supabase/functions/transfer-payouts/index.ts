@@ -86,9 +86,13 @@ Deno.serve(async (req) => {
   for (const payout of payouts) {
     const agent = payout.agents as { stripe_account_id: string | null; stripe_onboarding_completed: boolean }
 
-    // stripe 계좌 없거나 온보딩 미완료 → skip
-    if (!agent?.stripe_account_id || !agent?.stripe_onboarding_completed) {
-      results.push({ payout_id: payout.id, status: 'skip', detail: 'No connected Stripe account' })
+    // stripe 계좌 없거나 온보딩 미완료 → skip (사유 분리)
+    if (!agent?.stripe_account_id) {
+      results.push({ payout_id: payout.id, status: 'skip', detail: 'No Stripe account' })
+      continue
+    }
+    if (!agent?.stripe_onboarding_completed) {
+      results.push({ payout_id: payout.id, status: 'skip', detail: 'Stripe onboarding incomplete' })
       continue
     }
 
@@ -108,21 +112,41 @@ Deno.serve(async (req) => {
       })
 
       // 4. payout 업데이트
-      const { error: updateError } = await supabase
+      const { error: updateError, count } = await supabase
         .from('payouts')
         .update({
           status: 'transferred',
           stripe_transfer_id: transfer.id,
           transferred_at: new Date().toISOString(),
-        })
+        }, { count: 'exact' })
         .eq('id', payout.id)
         .eq('status', 'released') // 동시 실행 방지
 
       if (updateError) {
         results.push({ payout_id: payout.id, status: 'error', detail: updateError.message })
-      } else {
-        results.push({ payout_id: payout.id, status: 'ok', detail: transfer.id })
+        continue
       }
+
+      // 0 rows: status='released' 조건 미충족 → 이미 처리됐을 가능성 확인
+      // Stripe idempotency key 덕분에 transfer는 중복 생성 안 됐지만
+      // DB가 'transferred'로 이미 반영된 경우라면 ok로 처리해야 error 반복 방지
+      if (count === 0) {
+        const { data: current } = await supabase
+          .from('payouts')
+          .select('status, stripe_transfer_id')
+          .eq('id', payout.id)
+          .single()
+
+        if (current?.status === 'transferred' && current?.stripe_transfer_id === transfer.id) {
+          // 이미 반영됨 — 중복 처리 없이 ok로 마킹
+          results.push({ payout_id: payout.id, status: 'ok', detail: `already transferred: ${transfer.id}` })
+        } else {
+          results.push({ payout_id: payout.id, status: 'error', detail: `update 0 rows — current status: ${current?.status ?? 'unknown'}` })
+        }
+        continue
+      }
+
+      results.push({ payout_id: payout.id, status: 'ok', detail: transfer.id })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       results.push({ payout_id: payout.id, status: 'error', detail: msg })
