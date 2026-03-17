@@ -12,7 +12,8 @@
 | `v0.3.0-product-pass` | `4538f03` | 제품 1차 마감 + 최종 QA PASS |
 | `v0.3.1-regression-pass` | `ec0eda0` | Pre-live regression 21/21 PASS |
 | `v0.3.2-smoke-test-pass` | `619b6cc2` | Test 환경 최종 smoke test PASS |
-| _(코드 리뷰 반영)_ | `0dbfb353` | 1·2차 코드 리뷰 반영 완료 ← **현재** |
+| _(코드 리뷰 반영)_ | `0dbfb353` | 1·2차 코드 리뷰 반영 완료 (히스토리) |
+| _(migration chain 고정)_ | `f61eea6` | 001~042 체인 확정 (`037` 사인 불가, `042` 대체) ← **현재 기준점** |
 
 ---
 
@@ -405,7 +406,7 @@ SELECT cron.schedule(
 
 ## DB 보안 강화 기록 (migrations 015–026)
 
-### 최신 커밋: `eea46a4` (migration 026)
+### 스냅샷 기준 커밋: `eea46a4` (migration 026, 히스토리 섹션)
 
 ### 상태 전이표 (DB 코드 공식 버전 — migration 021 기준)
 
@@ -586,3 +587,155 @@ GRANT SELECT ON submissions TO authenticated;
 
 -- 단, 복구 후 submissions_safe view와 storage helper 함수는 그대로 유지 권장
 ```
+
+---
+
+## Migration 039: 015 리뷰 잔여 2건 해소
+
+**파일:** `039_agents_immutability_and_tasks_update_policy.sql`
+
+### A. agents 핵심 컬럼 immutability (015 잔여 #1)
+
+**배경:** 015 `agents_update` 정책 주석에 "완전한 컬럼 잠금은 별도 트리거 필요"로 명시됐으나 migration chain 어디에도 구현 없었음.
+
+**해결:** `prevent_agent_core_change()` BEFORE UPDATE 트리거 추가
+
+| 컬럼 | 잠금 대상 | admin 예외 |
+|---|---|---|
+| `user_id` | ✅ | ✅ |
+| `stripe_account_id` | ✅ | ✅ |
+| `stripe_onboarding_completed` | ✅ | ✅ (+ trigger chain bypass) |
+| `stripe_onboarding_completed_at` | ✅ | ✅ (+ trigger chain bypass) |
+
+- `pg_trigger_depth() > 0` 시 bypass: payout guard 등 내부 트리거 경로 허용
+- `REVOKE EXECUTE FROM PUBLIC`: 직접 호출 차단
+
+**`agents_update` 정책 주석 교체:** "별도 트리거 필요" → "trg_prevent_agent_core_change에서 강제"
+
+### B. tasks_update owner/admin 분리 (015 잔여 #2)
+
+**배경:** 015 `tasks_update` WITH CHECK에 `user_id = auth.uid()` 가 포함돼 admin이 타인 task 수정 시 혼란 가능. 015에 `tasks_update_admin`이 별도 존재하나 `tasks_update` WITH CHECK 혼용 문제 잔존.
+
+**해결:**
+
+| 정책 | USING | WITH CHECK | 대상 |
+|---|---|---|---|
+| `tasks_update` | `user_id = auth.uid()` | `user_id = auth.uid()` | owner 전용 |
+| `tasks_update_admin` | `is_admin()` | `is_admin()` | admin 전용 |
+
+- 두 정책 permissive OR 동작 → 실질 동작 동일, 의도 명확
+- owner와 admin 경로 완전 분리
+
+### 015 사인 상태
+
+| 지적 항목 | 해소 migration |
+|---|---|
+| `prevent_submission_manipulation` trigger chain 충돌 | ✅ 031 |
+| `get_user_role()` 기본값 `'user'` | ✅ 018 |
+| `agents.stripe_account_id` immutability 트리거 미존재 | ✅ **039** |
+| `tasks_update` owner/admin 혼합 표현 | ✅ **039** |
+
+**015 + 018 + 031 + 039 묶음 기준 사인 완료.**
+
+---
+
+## Migration 016~021 + 040 사인 기록
+
+| Migration | 문제 | 후속 해소 | 사인 |
+|---|---|---|---|
+| 016 | legacy `hold_reason IS NULL` hold row → stuck 가능 | 020 백필 | ✅ |
+| 017 | `get_user_role()` `'user'` fallback; `prevent_submission_manipulation` chain 충돌 | 018(NULL fallback), 031(pg_trigger_depth bypass) | ✅ |
+| 018 | `prevent_order_core_change` stripe 컬럼 완전 잠금 vs 코드 충돌; payout service_role 경로 불명확; `chk_hold_reason` 순서 | 019→020→021(allowlist 완결, bypass 제거, 백필) | ✅ |
+| 019 | system caller bypass 잔존; `chk_hold_status_requires_reason` 기존 데이터 충돌 가능 | 020 (bypass 제거, 백필 선행) | ✅ |
+| 020 | — | 자체 완결 (백필 + allowlist 통일) | ✅ |
+| 021 | `cancel_payout_on_refund()` SECURITY DEFINER 누락 | 040 | ✅ |
+| 040 | 021 잔여 — `cancel_payout_on_refund()` SECURITY DEFINER + `public.payouts` 명시 + REVOKE | 자체 완결 | ✅ |
+
+---
+
+## Migration 022~026 + 041 사인 기록
+
+| Migration | 문제 | 후속 해소 | 사인 |
+|---|---|---|---|
+| 022 | — | 자체 완결 (webhook lock + stale 복구 경로) | ✅ |
+| 023 | `security_invoker` → 024 REVOKE 후 view 차단 | 025 (security_definer 재정의) | ✅ |
+| 024 | 023 view + 026 storage policy가 submissions 직접 참조 → broken | 025(view), 026(storage 헬퍼) | ✅ |
+| 025 | task owner row filter에 `soft_deleted_at IS NULL` 누락 | 041 | ✅ |
+| 026 | — | 자체 완결 (storage RLS SECURITY DEFINER 헬퍼 3개) | ✅ |
+| 041 | 025 잔여 — `submissions_safe` task owner 서브쿼리 `soft_deleted_at IS NULL` 추가 | 자체 완결 | ✅ |
+
+---
+
+## Migration 027~038 + 039~042 사인 기록
+
+| Migration | 내용 | 사인 |
+|---|---|---|
+| 027 | 030 체인 기준 follower_count 트리거 보강 완료 | ✅ |
+| 028 | SECURITY DEFINER/search_path 보강 + submission_count DELETE 처리 | ✅ |
+| 029 | same submission 1회 구매 정책 확정 (comment-only) | ✅ |
+| 030 | trigger 함수 SECURITY DEFINER/search_path 일괄 보강 (027 partial 완결) | ✅ |
+| 031 | `prevent_submission_manipulation` trigger chain bypass — auto_flag 경로 실제 버그 수정 | ✅ |
+| 032 | `prevent_review_manipulation` 동일 패턴 bypass 추가 — auto_flag 경로 최종 정상화 | ✅ |
+| 033 | 006 잔여 정책 의도 주석 명시 (구조 변경 없음) | ✅ |
+| 034 | access token hook SET search_path + cron 중복 등록 방지 보강 | ✅ |
+| 035 | 008 Stripe Connect 컬럼 주석 보강 (구조 변경 없음) | ✅ |
+| 036 | payout guard SECURITY DEFINER/search_path + soft_deleted agent Case C 추가 최종 보강 | ✅ |
+| 037 | ❌ 회귀 — 컬럼명 오기(`event_type`) + 022 보강 소실. **042로 대체** | ❌ |
+| 038 | 013 중간 이행 단계 이력 주석 명시 (구조 변경 없음) | ✅ |
+| 039 | 015 잔여 — agents immutability 트리거 + tasks_update owner/admin 완전 분리 | ✅ |
+| 040 | 021 잔여 — `cancel_payout_on_refund()` SECURITY DEFINER + public.payouts + REVOKE | ✅ |
+| 041 | 025 잔여 — `submissions_safe` task owner row filter `soft_deleted_at IS NULL` 보강 | ✅ |
+| 042 | 037 대체 — `claim_webhook_event()` 컬럼명(`type`) + `processing_started_at` + type mismatch 감지 + SECURITY DEFINER 최종 복구 | ✅ |
+
+---
+
+## Migration 001~042 최종 상태표
+
+> 기준 커밋: `f61eea6` (2026-03-16)
+
+| Migration | 내용 | 상태 |
+|---|---|---|
+| 001 | enums 생성 | ✅ 사인 |
+| 002 | users/agents 테이블 | ✅ 사인 |
+| 003 | tasks/submissions 테이블 | ✅ 사인 |
+| 004 | orders/payouts 테이블 | ✅ 사인 |
+| 005 | reviews/follows/reports 테이블 | ✅ 사인 |
+| 006 | RLS 기본 정책 | ✅ 사인 |
+| 007 | storage/cron | ✅ 사인 |
+| 008 | Stripe Connect 컬럼 | ✅ 사인 |
+| 009 | payout guard | ✅ 사인 |
+| 010 | budget 컬럼 추가 | ✅ 사인 |
+| 011 | transfer-payouts cron | ✅ 사인 |
+| 012 | webhook processing lock | ✅ 사인 |
+| 013 | access token hook (중간 이행) | ⚠️ 단독 배포 불가 — 014+034와 묶음 기준 사인 |
+| 014 | claims.role 오버라이드 제거 | ✅ 사인 (034 묶음) |
+| 015 | RLS hardening phase 1 | ✅ 사인 (018+031+039 묶음) |
+| 016 | payout guard hardening | ✅ 사인 (019+020 묶음) |
+| 017 | RLS hardening phase 2 | ✅ 사인 (018+031 묶음) |
+| 018 | column immutability + state transition | ✅ 사인 (019+020+021 묶음) |
+| 019 | financial integrity finalization | ✅ 사인 (020 묶음) |
+| 020 | transition integrity finalization | ✅ 사인 |
+| 021 | transition allowlist critical fixes | ✅ 사인 (040 묶음) |
+| 022 | webhook lock hardening | ✅ 사인 |
+| 023 | submissions_safe view (security_invoker) | ✅ 사인 (025 묶음) |
+| 024 | REVOKE submissions direct select | ✅ 사인 (025+026 묶음) |
+| 025 | submissions_safe security_definer 전환 | ✅ 사인 (041 묶음) |
+| 026 | storage RLS SECURITY DEFINER 헬퍼 | ✅ 사인 |
+| 027 | follower_count SECURITY DEFINER | ✅ 사인 (030 묶음) |
+| 028 | handle_new_user/sync_user_email search_path + submission_count DELETE | ✅ 사인 |
+| 029 | orders same-submission 1회 구매 정책 명시 | ✅ 사인 |
+| 030 | trigger 함수 SECURITY DEFINER 일괄 보강 | ✅ 사인 |
+| 031 | prevent_submission_manipulation trigger chain bypass | ✅ 사인 |
+| 032 | prevent_review_manipulation trigger chain bypass | ✅ 사인 |
+| 033 | 006 정책 의도 주석 (구조 변경 없음) | ✅ 사인 |
+| 034 | access token hook search_path + cron idempotency | ✅ 사인 |
+| 035 | Stripe Connect 주석 (구조 변경 없음) | ✅ 사인 |
+| 036 | payout guard SECURITY DEFINER 최종 보강 | ✅ 사인 |
+| 037 | ❌ 회귀 — `event_type` 오기 + 022 보강 소실 | **사인 불가 — 042로 대체** |
+| 038 | 013 이력 주석 (구조 변경 없음) | ✅ 사인 |
+| 039 | agents immutability 트리거 + tasks_update 정책 분리 | ✅ 사인 |
+| 040 | cancel_payout_on_refund SECURITY DEFINER 보강 | ✅ 사인 |
+| 041 | submissions_safe soft_deleted task owner 조건 보강 | ✅ 사인 |
+| 042 | claim_webhook_event 037 회귀 수정 + 022 보강 재통합 | ✅ 사인 |
+
+**037은 사인 불가. 042가 037을 대체하며 전체 chain은 042 기준으로 완결.**
