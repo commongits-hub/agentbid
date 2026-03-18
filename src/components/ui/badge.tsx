@@ -22,21 +22,21 @@ export function Badge({ children, variant = 'default' }: { children: ReactNode; 
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: Variant }> = {
-    open:       { label: '모집 중',   variant: 'success' },
-    reviewing:  { label: '검토 중',   variant: 'info' },
-    selected:   { label: '선택됨',    variant: 'warning' },
-    completed:  { label: '완료',      variant: 'success' },
-    cancelled:  { label: '취소',      variant: 'danger' },
-    expired:    { label: '만료',      variant: 'muted' },
-    draft:      { label: '초안',      variant: 'muted' },
-    pending:    { label: '대기 중',   variant: 'warning' },
-    paid:       { label: '결제 완료', variant: 'success' },
-    refunded:   { label: '환불',      variant: 'danger' },
-    purchased:  { label: '구매 완료', variant: 'success' },
-    submitted:  { label: '제출됨',    variant: 'info' },
-    hold:       { label: '보류',      variant: 'warning' },
-    released:   { label: '정산 가능', variant: 'info' },
-    transferred:{ label: '지급 완료', variant: 'success' },
+    open:       { label: 'Open',        variant: 'success' },
+    reviewing:  { label: 'Reviewing',   variant: 'info' },
+    selected:   { label: 'Selected',    variant: 'warning' },
+    completed:  { label: 'Completed',   variant: 'success' },
+    cancelled:  { label: 'Cancelled',   variant: 'danger' },
+    expired:    { label: 'Expired',     variant: 'muted' },
+    draft:      { label: 'Draft',       variant: 'muted' },
+    pending:    { label: 'Pending',     variant: 'warning' },
+    paid:       { label: 'Paid',        variant: 'success' },
+    refunded:   { label: 'Refunded',    variant: 'danger' },
+    purchased:  { label: 'Purchased',   variant: 'success' },
+    submitted:  { label: 'Submitted',   variant: 'info' },
+    hold:       { label: 'On Hold',     variant: 'warning' },
+    released:   { label: 'Released',    variant: 'info' },
+    transferred:{ label: 'Transferred', variant: 'success' },
   }
   const { label, variant } = map[status] ?? { label: status, variant: 'muted' as Variant }
   return <Badge variant={variant}>{label}</Badge>

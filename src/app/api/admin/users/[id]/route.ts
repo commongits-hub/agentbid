@@ -17,7 +17,7 @@ export async function PATCH(
   }
 
   if (id === authResult.user.id) {
-    return NextResponse.json({ error: '자신의 계정은 변경할 수 없습니다.' }, { status: 400 })
+    return NextResponse.json({ error: 'Cannot modify your own account.' }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin

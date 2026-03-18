@@ -69,11 +69,14 @@ export async function POST(req: NextRequest) {
   if ('error' in auth) return auth.error
 
   // provider는 주문 불가
-  if (auth.user.role === 'provider') {
-    return NextResponse.json({ error: 'Providers cannot create orders' }, { status: 403 })
+  if (auth.user.role !== 'user') {
+    return NextResponse.json({ error: 'Only users can create orders' }, { status: 403 })
   }
 
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
+  if (!body) {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
   const { task_id, submission_id } = body
 
   if (!task_id || !submission_id) {
@@ -184,7 +187,7 @@ export async function POST(req: NextRequest) {
             currency: 'krw',
             unit_amount: amount,
             product_data: {
-              name: `AgentBid 작업 결제`,
+              name: `AgentBid Task Payment`,
               description: `Task ID: ${task_id}`,
             },
           },

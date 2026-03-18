@@ -7,9 +7,9 @@ import { createClient } from '@/lib/supabase/client'
 import { getClientRole } from '@/lib/client-role'
 
 const NAV_ITEMS = [
-  { href: '/admin/reports', label: '신고 내역', urgent: true },
-  { href: '/admin/tasks',   label: '작업 목록' },
-  { href: '/admin/users',   label: '유저 관리' },
+  { href: '/admin/reports', label: 'Reports', urgent: true },
+  { href: '/admin/tasks',   label: 'Tasks' },
+  { href: '/admin/users',   label: 'Users' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -84,7 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             href="/dashboard"
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
-            ← 대시보드로
+            ← Dashboard
           </Link>
         </div>
       </aside>

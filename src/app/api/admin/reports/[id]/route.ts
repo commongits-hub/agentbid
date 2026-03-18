@@ -18,7 +18,7 @@ export async function PATCH(
   if (!body?.status) return NextResponse.json({ error: 'status required' }, { status: 400 })
 
   if (!ALLOWED_STATUSES.includes(body.status as ReportStatus)) {
-    return NextResponse.json({ error: `허용 상태: ${ALLOWED_STATUSES.join(', ')}` }, { status: 400 })
+    return NextResponse.json({ error: `Invalid status. Allowed: ${ALLOWED_STATUSES.join(', ')}` }, { status: 400 })
   }
 
   const updatePayload: { status: ReportStatus; admin_note?: string | null } = { status: body.status }

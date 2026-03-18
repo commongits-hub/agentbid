@@ -1,5 +1,5 @@
 // src/components/reviews/ReviewEditForm.tsx
-// TODO: StarRatingInput 공통 컴포넌트 분리 예정 (ReviewForm.tsx와 동일 — 같이 처리)
+// TODO: Extract StarRatingInput shared component (same as ReviewForm.tsx)
 'use client'
 
 import { useState } from 'react'
@@ -12,6 +12,8 @@ interface Props {
   onSuccess?: (updated: { rating: number; content: string }) => void
   onCancel?: () => void
 }
+
+const RATING_LABELS = ['', 'Poor', 'Below average', 'Average', 'Good', 'Excellent']
 
 export function ReviewEditForm({
   reviewId,
@@ -28,9 +30,8 @@ export function ReviewEditForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (rating === 0)                  { setError('별점을 선택해주세요.'); return }
-    if (content.trim().length < 10)    { setError('리뷰는 최소 10자 이상 작성해주세요.'); return }
-    // 변경 없음: 네트워크 호출 없이 종료
+    if (rating === 0)                  { setError('Please select a rating.'); return }
+    if (content.trim().length < 10)    { setError('Review must be at least 10 characters.'); return }
     if (rating === initialRating && content.trim() === initialContent.trim()) {
       onCancel?.(); return
     }
@@ -40,7 +41,7 @@ export function ReviewEditForm({
 
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { setError('로그인이 필요합니다.'); setLoading(false); return }
+    if (!session) { setError('Please log in to edit your review.'); setLoading(false); return }
 
     const res = await fetch(`/api/reviews/${reviewId}`, {
       method: 'PUT',
@@ -56,7 +57,7 @@ export function ReviewEditForm({
     setLoading(false)
 
     if (!res.ok) {
-      setError(data.error ?? '리뷰 수정 중 오류가 발생했습니다.')
+      setError(data.error ?? 'Failed to update review.')
       return
     }
 
@@ -66,22 +67,22 @@ export function ReviewEditForm({
   return (
     <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-800 bg-gray-900 p-6">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-gray-200">리뷰 수정</h3>
+        <h3 className="text-sm font-semibold text-gray-200">Edit Review</h3>
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
             className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
           >
-            취소
+            Cancel
           </button>
         )}
       </div>
-      <p className="text-xs text-gray-600 mb-4">작성 후 7일 이내까지 수정 가능합니다.</p>
+      <p className="text-xs text-gray-600 mb-4">Edits are allowed within 7 days of submission.</p>
 
-      {/* 별점 */}
+      {/* Rating */}
       <div>
-        <p className="text-xs text-gray-500 mb-2">별점</p>
+        <p className="text-xs text-gray-500 mb-2">Rating</p>
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map(star => (
             <button
@@ -97,15 +98,15 @@ export function ReviewEditForm({
           ))}
           {(hover || rating) > 0 && (
             <span className="ml-2 self-center text-xs text-gray-500">
-              {['', '별로예요', '아쉬워요', '보통이에요', '좋아요', '최고예요'][hover || rating]}
+              {RATING_LABELS[hover || rating]}
             </span>
           )}
         </div>
       </div>
 
-      {/* 내용 */}
+      {/* Content */}
       <div className="mt-4">
-        <p className="text-xs text-gray-500 mb-2">리뷰 내용 <span className="text-gray-700">(최소 10자)</span></p>
+        <p className="text-xs text-gray-500 mb-2">Review <span className="text-gray-700">(min. 10 characters)</span></p>
         <textarea
           value={content}
           onChange={e => setContent(e.target.value)}
@@ -113,7 +114,7 @@ export function ReviewEditForm({
           className="w-full rounded-xl border border-gray-800 bg-gray-950/50 px-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
         />
         <p className={`mt-1 text-right text-xs ${content.trim().length < 10 ? 'text-gray-700' : 'text-gray-500'}`}>
-          {content.trim().length}자
+          {content.trim().length} chars
         </p>
       </div>
 
@@ -128,7 +129,7 @@ export function ReviewEditForm({
         disabled={loading || rating === 0 || content.trim().length < 10}
         className="mt-4 w-full rounded-2xl bg-emerald-500 py-2.5 text-sm font-semibold text-gray-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {loading ? '저장 중...' : '수정 저장'}
+        {loading ? 'Saving...' : 'Save Changes'}
       </button>
     </form>
   )

@@ -17,13 +17,17 @@ export async function GET(req: NextRequest) {
   const auth = await requireProvider(req)
   if ('error' in auth) return auth.error
 
-  const { data: agent } = await supabaseAdmin
+  const { data: agent, error: agentErr } = await supabaseAdmin
     .from('agents')
     .select('id, stripe_account_id, stripe_onboarding_completed, stripe_onboarding_completed_at')
     .eq('user_id', auth.user.id)
     .is('soft_deleted_at', null)
-    .single()
+    .maybeSingle()
 
+  if (agentErr) {
+    console.error('Agent lookup error:', agentErr.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
   if (!agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
   }
@@ -52,12 +56,14 @@ export async function GET(req: NextRequest) {
   const fullyConnected  = chargesEnabled && payoutsEnabled
 
   // DB 상태 동기화 (변경이 있을 때만)
+  let completedAt = agent.stripe_onboarding_completed_at ?? null
   if (fullyConnected && !agent.stripe_onboarding_completed) {
+    completedAt = new Date().toISOString()
     await supabaseAdmin
       .from('agents')
       .update({
         stripe_onboarding_completed:    true,
-        stripe_onboarding_completed_at: new Date().toISOString(),
+        stripe_onboarding_completed_at: completedAt,
       })
       .eq('id', agent.id)
   }
@@ -67,6 +73,6 @@ export async function GET(req: NextRequest) {
     charges_enabled:  chargesEnabled,
     payouts_enabled:  payoutsEnabled,
     account_id:       agent.stripe_account_id,
-    completed_at:     agent.stripe_onboarding_completed_at ?? null,
+    completed_at:     completedAt,
   })
 }

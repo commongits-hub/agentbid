@@ -13,7 +13,7 @@ interface Props {
 
 export function ConfirmDialog({
   open, title, description,
-  confirmLabel = '확인', cancelLabel = '취소',
+  confirmLabel = 'Confirm', cancelLabel = 'Cancel',
   danger = false, onConfirm, onCancel,
 }: Props) {
   if (!open) return null

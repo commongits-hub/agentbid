@@ -50,7 +50,7 @@ export default function AdminUsersPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const json = await res.json()
-      if (!res.ok) setError(json.error ?? '오류가 발생했습니다')
+      if (!res.ok) setError(json.error ?? 'An error occurred.')
       else setUsers(json.data ?? [])
       setLoading(false)
     })
@@ -73,7 +73,7 @@ export default function AdminUsersPage() {
       setActionMsg(`❌ ${json.error}`)
     } else {
       setUsers(prev => prev.map(u => u.id === confirm.userId ? { ...u, is_active: confirm.nextActive } : u))
-      setActionMsg(`✓ ${confirm.email} — ${confirm.nextActive ? '활성화' : '비활성화'} 완료`)
+      setActionMsg(`✓ ${confirm.email} — ${confirm.nextActive ? 'activated' : 'deactivated'}`)
     }
     setTimeout(() => setActionMsg(null), 3000)
   }
@@ -82,8 +82,8 @@ export default function AdminUsersPage() {
     <div className="px-8 py-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-50">유저 관리</h1>
-          <p className="mt-0.5 text-sm text-gray-500">최근 가입 유저 50명</p>
+          <h1 className="text-xl font-bold text-gray-50">Users</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Recent 50 registered users</p>
         </div>
         {actionMsg && (
           <span className={`rounded-xl px-3 py-1.5 text-xs font-medium ${
@@ -104,17 +104,17 @@ export default function AdminUsersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800 bg-gray-900/60">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">이메일</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">닉네임</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">역할</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">상태</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">가입일</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">액션</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Nickname</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Role</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Joined</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {users.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">유저가 없습니다</td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">No users found.</td></tr>
               ) : (
                 users.map(u => (
                   <tr key={u.id} className="hover:bg-gray-900/40 transition-colors">
@@ -128,10 +128,10 @@ export default function AdminUsersPage() {
                           : 'bg-gray-800 text-gray-500'
                       }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${u.is_active ? 'bg-emerald-400' : 'bg-gray-600'}`} />
-                        {u.is_active ? '활성' : '비활성'}
+                        {u.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{new Date(u.created_at).toLocaleDateString('ko-KR')}</td>
+                    <td className="px-4 py-3 text-gray-500">{new Date(u.created_at).toLocaleDateString('en-US')}</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         disabled={saving === u.id || u.role === 'admin'}
@@ -142,7 +142,7 @@ export default function AdminUsersPage() {
                             : 'border border-emerald-800/60 text-emerald-400 hover:bg-emerald-950/30'
                         }`}
                       >
-                        {saving === u.id ? '처리 중...' : u.role === 'admin' ? '—' : u.is_active ? '비활성화' : '활성화'}
+                        {saving === u.id ? 'Processing...' : u.role === 'admin' ? '—' : u.is_active ? 'Deactivate' : 'Activate'}
                       </button>
                     </td>
                   </tr>
@@ -155,9 +155,9 @@ export default function AdminUsersPage() {
 
       <ConfirmDialog
         open={!!confirm}
-        title={confirm?.nextActive ? '유저 활성화' : '유저 비활성화'}
-        description={`${confirm?.email}을 ${confirm?.nextActive ? '활성화' : '비활성화'}하시겠습니까?`}
-        confirmLabel={confirm?.nextActive ? '활성화' : '비활성화'}
+        title={confirm?.nextActive ? 'Activate User' : 'Deactivate User'}
+        description={`${confirm?.nextActive ? 'Activate' : 'Deactivate'} ${confirm?.email}?`}
+        confirmLabel={confirm?.nextActive ? 'Activate' : 'Deactivate'}
         danger={!confirm?.nextActive}
         onConfirm={handleToggle}
         onCancel={() => setConfirm(null)}

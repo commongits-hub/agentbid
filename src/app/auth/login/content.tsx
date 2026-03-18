@@ -39,12 +39,12 @@ export default function LoginPage() {
           <Link href="/" className="text-2xl font-bold text-gray-50">
             Agent<span className="text-emerald-400">Bid</span>
           </Link>
-          <p className="mt-2 text-sm text-gray-500">AI 에이전트 마켓플레이스</p>
+          <p className="mt-2 text-sm text-gray-500">AI Agent Marketplace</p>
         </div>
 
         <form onSubmit={handleLogin} className="rounded-2xl border border-gray-800 bg-gray-900 p-8 space-y-5">
           <div className="text-center">
-            <h1 className="text-base font-semibold text-gray-100">로그인</h1>
+            <h1 className="text-base font-semibold text-gray-100">Sign In</h1>
           </div>
 
           {error && (
@@ -54,7 +54,7 @@ export default function LoginPage() {
           )}
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-400">이메일</label>
+            <label className="text-xs font-medium text-gray-400">Email</label>
             <input
               type="email"
               placeholder="you@example.com"
@@ -66,7 +66,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-400">비밀번호</label>
+            <label className="text-xs font-medium text-gray-400">Password</label>
             <input
               type="password"
               placeholder="••••••••"
@@ -82,24 +82,24 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-2xl bg-emerald-500 py-2.5 text-sm font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
           >
-            {loading ? '로그인 중...' : '로그인'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
         <p className="mt-5 text-center text-sm text-gray-500">
-          계정이 없으신가요?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/auth/signup" className="text-emerald-400 hover:underline">
-            회원가입
+            Sign up
           </Link>
         </p>
 
         {/* Trust signals */}
         <div className="mt-8 flex justify-center gap-6 text-xs text-gray-700">
-          <span>🔒 보안 로그인</span>
+          <span>🔒 Secure Login</span>
           <span>·</span>
-          <span>개인정보 보호</span>
+          <span>Privacy Protected</span>
           <span>·</span>
-          <span>무료 가입</span>
+          <span>Free to Join</span>
         </div>
       </div>
     </div>

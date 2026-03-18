@@ -40,13 +40,13 @@ export async function POST(req: NextRequest) {
 
   // 필수 필드 검증
   if (!order_id || !rating || !content) {
-    return NextResponse.json({ error: '필수 항목이 없습니다.' }, { status: 400 })
+    return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
   }
   if (typeof rating !== 'number' || rating < 1 || rating > 5) {
-    return NextResponse.json({ error: '별점은 1~5 사이여야 합니다.' }, { status: 400 })
+    return NextResponse.json({ error: 'Rating must be between 1 and 5.' }, { status: 400 })
   }
   if (typeof content !== 'string' || content.trim().length < 10) {
-    return NextResponse.json({ error: '리뷰는 최소 10자 이상 작성해주세요.' }, { status: 400 })
+    return NextResponse.json({ error: 'Review must be at least 10 characters.' }, { status: 400 })
   }
 
   // 주문 확인 — 현재 유저 소유 + paid 상태
@@ -58,9 +58,9 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (orderErr) return NextResponse.json({ error: orderErr.message }, { status: 500 })
-  if (!order) return NextResponse.json({ error: '주문을 찾을 수 없습니다.' }, { status: 404 })
+  if (!order) return NextResponse.json({ error: 'Order not found.' }, { status: 404 })
   if (order.status !== 'paid') {
-    return NextResponse.json({ error: '결제 완료 주문에만 리뷰를 작성할 수 있습니다.' }, { status: 400 })
+    return NextResponse.json({ error: 'Reviews can only be submitted for paid orders.' }, { status: 400 })
   }
 
   // agent_id 조회 (submissions 통해)
@@ -71,18 +71,19 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (subErr || !submission) {
-    return NextResponse.json({ error: 'agent 정보를 확인할 수 없습니다.' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to retrieve agent information.' }, { status: 500 })
   }
 
   // 중복 방지: order_id UNIQUE — DB 레벨에서도 막지만 API에서 먼저 확인
-  const { data: existing } = await supabaseAdmin
+  const { data: existing, error: existingErr } = await supabaseAdmin
     .from('reviews')
     .select('id')
     .eq('order_id', order_id)
     .maybeSingle()
 
+  if (existingErr) return NextResponse.json({ error: existingErr.message }, { status: 500 })
   if (existing) {
-    return NextResponse.json({ error: '이미 리뷰를 작성한 주문입니다.' }, { status: 409 })
+    return NextResponse.json({ error: 'You have already submitted a review for this order.' }, { status: 409 })
   }
 
   // 리뷰 INSERT
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
   if (insertErr) {
     // DB UNIQUE 위반 (order_id) — 경쟁 상태
     if (insertErr.code === '23505') {
-      return NextResponse.json({ error: '이미 리뷰를 작성한 주문입니다.' }, { status: 409 })
+      return NextResponse.json({ error: 'You have already submitted a review for this order.' }, { status: 409 })
     }
     return NextResponse.json({ error: insertErr.message }, { status: 500 })
   }

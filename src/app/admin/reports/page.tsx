@@ -18,10 +18,10 @@ type AdminReport = {
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: Variant }> = {
-  pending:   { label: '대기 중',   variant: 'warning' },
-  reviewed:  { label: '검토됨',    variant: 'info' },
-  resolved:  { label: '처리 완료', variant: 'success' },
-  dismissed: { label: '기각',      variant: 'muted' },
+  pending:   { label: 'Pending',   variant: 'warning' },
+  reviewed:  { label: 'Reviewed',  variant: 'info' },
+  resolved:  { label: 'Resolved',  variant: 'success' },
+  dismissed: { label: 'Dismissed', variant: 'muted' },
 }
 const NEXT_STATUSES: Record<string, string[]> = {
   pending:   ['reviewed', 'resolved', 'dismissed'],
@@ -30,7 +30,10 @@ const NEXT_STATUSES: Record<string, string[]> = {
   dismissed: [],
 }
 const STATUS_LABELS: Record<string, string> = {
-  pending: '대기 중', reviewed: '검토됨', resolved: '처리 완료', dismissed: '기각',
+  pending:   'Pending',
+  reviewed:  'Reviewed',
+  resolved:  'Resolved',
+  dismissed: 'Dismissed',
 }
 
 function ReportStatusBadge({ status }: { status: string }) {
@@ -59,7 +62,7 @@ export default function AdminReportsPage() {
   const [adminNote, setAdminNote] = useState('')
   const [saving, setSaving]     = useState<string | null>(null)
   const [actionMsg, setActionMsg] = useState<string | null>(null)
-  const [noteModal, setNoteModal] = useState<Confirm>(null) // note 입력 선행 모달
+  const [noteModal, setNoteModal] = useState<Confirm>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -70,9 +73,8 @@ export default function AdminReportsPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const json = await res.json()
-      if (!res.ok) setError(json.error ?? '오류가 발생했습니다')
+      if (!res.ok) setError(json.error ?? 'An error occurred.')
       else {
-        // pending 우선 정렬 — 운영 우선순위 기준
         const sorted = (json.data ?? []).sort((a: AdminReport, b: AdminReport) => {
           const order = ['pending', 'reviewed', 'resolved', 'dismissed']
           return order.indexOf(a.status) - order.indexOf(b.status)
@@ -107,13 +109,12 @@ export default function AdminReportsPage() {
             ? { ...r, status: confirm.nextStatus, admin_note: adminNote || r.admin_note }
             : r
         )
-        // 상태 변경 후 재정렬 (pending 우선)
         return updated.sort((a, b) => {
           const ai = ORDER.indexOf(a.status); const bi = ORDER.indexOf(b.status)
           return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
         })
       })
-      setActionMsg(`✓ 신고 상태 → ${STATUS_LABELS[confirm.nextStatus]}`)
+      setActionMsg(`✓ Report status → ${STATUS_LABELS[confirm.nextStatus]}`)
     }
     setTimeout(() => setActionMsg(null), 3000)
   }
@@ -122,8 +123,8 @@ export default function AdminReportsPage() {
     <div className="px-8 py-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-50">신고 내역</h1>
-          <p className="mt-0.5 text-sm text-gray-500">최근 신고 50건</p>
+          <h1 className="text-xl font-bold text-gray-50">Reports</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Recent 50 reports</p>
         </div>
         {actionMsg && (
           <span className={`rounded-xl px-3 py-1.5 text-xs font-medium ${
@@ -134,7 +135,7 @@ export default function AdminReportsPage() {
         )}
       </div>
 
-      {/* Summary bar — 로드된 데이터 기준 */}
+      {/* Summary bar */}
       {!loading && !error && reports.length > 0 && (() => {
         const pending  = reports.filter(r => r.status === 'pending').length
         const reviewed = reports.filter(r => r.status === 'reviewed').length
@@ -143,21 +144,21 @@ export default function AdminReportsPage() {
             {pending > 0 && (
               <div className="flex items-center gap-2 rounded-xl border border-amber-800/60 bg-amber-950/20 px-4 py-2.5">
                 <span className="h-2 w-2 rounded-full bg-amber-400" />
-                <span className="text-sm font-semibold text-amber-400">{pending}건</span>
-                <span className="text-xs text-amber-600">처리 대기</span>
+                <span className="text-sm font-semibold text-amber-400">{pending}</span>
+                <span className="text-xs text-amber-600">Pending</span>
               </div>
             )}
             {reviewed > 0 && (
               <div className="flex items-center gap-2 rounded-xl border border-blue-800/60 bg-blue-950/20 px-4 py-2.5">
                 <span className="h-2 w-2 rounded-full bg-blue-400" />
-                <span className="text-sm font-semibold text-blue-400">{reviewed}건</span>
-                <span className="text-xs text-blue-600">검토 중</span>
+                <span className="text-sm font-semibold text-blue-400">{reviewed}</span>
+                <span className="text-xs text-blue-600">Under review</span>
               </div>
             )}
             {pending === 0 && reviewed === 0 && (
               <div className="flex items-center gap-2 rounded-xl border border-emerald-800/60 bg-emerald-950/20 px-4 py-2.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="text-xs text-emerald-400">미처리 신고 없음</span>
+                <span className="text-xs text-emerald-400">No pending reports</span>
               </div>
             )}
           </div>
@@ -174,17 +175,17 @@ export default function AdminReportsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-800 bg-gray-900/60">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">유형</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">이유</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">상태</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">관리자 노트</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">날짜</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">상태 변경</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Reason</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Admin Note</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Date</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500">Change Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
               {reports.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">신고 내역이 없습니다</td></tr>
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">No reports found.</td></tr>
               ) : (
                 reports.map(r => {
                   const nextOpts = NEXT_STATUSES[r.status] ?? []
@@ -202,10 +203,10 @@ export default function AdminReportsPage() {
                           {r.admin_note ?? '—'}
                         </p>
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{new Date(r.created_at).toLocaleDateString('ko-KR')}</td>
+                      <td className="px-4 py-3 text-gray-500">{new Date(r.created_at).toLocaleDateString('en-US')}</td>
                       <td className="px-4 py-3 text-center">
                         {nextOpts.length === 0 ? (
-                          <span className="text-xs text-gray-700">종단</span>
+                          <span className="text-xs text-gray-700">Terminal</span>
                         ) : (
                           <select
                             disabled={saving === r.id}
@@ -219,7 +220,7 @@ export default function AdminReportsPage() {
                             }}
                             className="rounded-lg border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 outline-none hover:border-gray-500 disabled:opacity-40"
                           >
-                            <option value="" disabled>변경...</option>
+                            <option value="" disabled>Change...</option>
                             {nextOpts.map(s => (
                               <option key={s} value={s}>{STATUS_LABELS[s]}</option>
                             ))}
@@ -235,7 +236,7 @@ export default function AdminReportsPage() {
         </div>
       )}
 
-      {/* 노트 입력 모달 → 확인 */}
+      {/* Note input modal */}
       {noteModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -245,16 +246,16 @@ export default function AdminReportsPage() {
             className="w-full max-w-sm rounded-2xl border border-gray-800 bg-gray-900 p-6 shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold text-gray-50">신고 상태 변경</h3>
+            <h3 className="text-base font-semibold text-gray-50">Change Report Status</h3>
             <p className="mt-2 text-sm text-gray-400">
-              상태를 <span className="font-medium text-gray-200">"{STATUS_LABELS[noteModal.nextStatus]}"</span>로 변경합니다.
+              Set status to <span className="font-medium text-gray-200">"{STATUS_LABELS[noteModal.nextStatus]}"</span>.
             </p>
             <div className="mt-4">
-              <p className="text-xs text-gray-500 mb-1.5">관리자 노트 <span className="text-gray-700">(선택)</span></p>
+              <p className="text-xs text-gray-500 mb-1.5">Admin Note <span className="text-gray-700">(optional)</span></p>
               <textarea
                 value={adminNote}
                 onChange={e => setAdminNote(e.target.value)}
-                placeholder="처리 사유, 조치 내용 등..."
+                placeholder="Reason, action taken, etc..."
                 rows={3}
                 className="w-full rounded-xl border border-gray-800 bg-gray-950/50 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-emerald-500 resize-none"
               />
@@ -264,13 +265,13 @@ export default function AdminReportsPage() {
                 onClick={() => { setNoteModal(null); setAdminNote('') }}
                 className="rounded-xl border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:border-gray-500"
               >
-                취소
+                Cancel
               </button>
               <button
                 onClick={() => { setConfirm(noteModal); setNoteModal(null) }}
                 className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-emerald-400"
               >
-                다음
+                Next
               </button>
             </div>
           </div>
@@ -279,9 +280,9 @@ export default function AdminReportsPage() {
 
       <ConfirmDialog
         open={!!confirm}
-        title="최종 확인"
-        description={confirm ? `신고를 "${STATUS_LABELS[confirm.nextStatus]}"으로 변경하시겠습니까?` : ''}
-        confirmLabel="변경 확인"
+        title="Confirm Change"
+        description={confirm ? `Change report status to "${STATUS_LABELS[confirm.nextStatus]}"?` : ''}
+        confirmLabel="Confirm"
         danger={confirm?.nextStatus === 'dismissed'}
         onConfirm={handleStatusChange}
         onCancel={() => setConfirm(null)}

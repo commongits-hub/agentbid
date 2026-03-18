@@ -31,23 +31,21 @@ export async function PUT(
     .maybeSingle()
 
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
-  if (!review)  return NextResponse.json({ error: '리뷰를 찾을 수 없습니다.' }, { status: 404 })
+  if (!review)  return NextResponse.json({ error: 'Review not found.' }, { status: 404 })
 
-  // 본인 리뷰가 아닌 경우
   if (review.user_id !== auth.user.id) {
-    return NextResponse.json({ error: '본인 리뷰만 수정할 수 있습니다.' }, { status: 403 })
+    return NextResponse.json({ error: 'You can only edit your own reviews.' }, { status: 403 })
   }
 
-  // flagged / 삭제된 리뷰는 수정 불가
   if (review.status !== 'published') {
-    return NextResponse.json({ error: '수정할 수 없는 상태의 리뷰입니다.' }, { status: 422 })
+    return NextResponse.json({ error: 'This review cannot be edited.' }, { status: 422 })
   }
 
   // ── 2. 7일 편집 창 확인 ──────────────────────────────────────────────────
   const createdAt = new Date(review.created_at).getTime()
   if (Date.now() - createdAt > EDIT_WINDOW_MS) {
     return NextResponse.json(
-      { error: '리뷰 작성 후 7일이 지나면 수정할 수 없습니다.' },
+      { error: 'Reviews can no longer be edited after 7 days.' },
       { status: 403 },
     )
   }
@@ -61,11 +59,11 @@ export async function PUT(
   const { rating, content } = body
 
   if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return NextResponse.json({ error: '별점은 1~5 정수여야 합니다.' }, { status: 400 })
+    return NextResponse.json({ error: 'Rating must be an integer between 1 and 5.' }, { status: 400 })
   }
 
   if (typeof content !== 'string' || content.trim().length < 10) {
-    return NextResponse.json({ error: '리뷰는 최소 10자 이상 작성해주세요.' }, { status: 400 })
+    return NextResponse.json({ error: 'Review must be at least 10 characters.' }, { status: 400 })
   }
 
   const trimmedContent = content.trim()
@@ -75,17 +73,20 @@ export async function PUT(
     return NextResponse.json({ data: review })
   }
 
-  // ── 5. 업데이트 ──────────────────────────────────────────────────────────
+  // ── 5. 업데이트 — user_id + status 조건으로 스코프 좁힘 (race condition 방어)
   // updated_at: trg_reviews_updated_at 트리거 자동 처리
   // avg_rating: trg_recalculate_rating 트리거 자동 재계산
   const { data: updated, error: updateErr } = await supabaseAdmin
     .from('reviews')
     .update({ rating, content: trimmedContent })
     .eq('id', reviewId)
+    .eq('user_id', auth.user.id)
+    .eq('status', 'published')
     .select('id, rating, content, created_at, updated_at')
-    .single()
+    .maybeSingle()
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  if (!updated) return NextResponse.json({ error: 'Review not found or no longer editable.' }, { status: 404 })
 
   return NextResponse.json({ data: updated })
 }

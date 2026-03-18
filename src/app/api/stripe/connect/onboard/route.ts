@@ -25,9 +25,13 @@ export async function POST(req: NextRequest) {
     .select('id, stripe_account_id, stripe_onboarding_completed')
     .eq('user_id', auth.user.id)
     .is('soft_deleted_at', null)
-    .single()
+    .maybeSingle()
 
-  if (agentErr || !agent) {
+  if (agentErr) {
+    console.error('Agent lookup error:', agentErr.message)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+  if (!agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
   }
 
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest) {
         .from('profiles')
         .select('nickname')
         .eq('id', auth.user.id)
-        .single()
+        .maybeSingle()
 
       const account = await stripe.accounts.create({
         type: 'express',

@@ -1,8 +1,8 @@
 'use client'
 
 // src/app/orders/[sessionId]/success/page.tsx
-// Stripe Checkout 완료 후 리다이렉트되는 성공 페이지
-// 주문 확인 후 리뷰 작성 플로우 포함
+// Stripe Checkout redirect target after successful payment
+// Polls order status and shows review flow once confirmed
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -64,7 +64,6 @@ export default function CheckoutSuccessPage() {
         setTaskId(matched.task_id)
         setOrderId(matched.id)
 
-        // 기존 리뷰 여부 확인
         const rvRes = await fetch(`/api/reviews?order_id=${matched.id}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
@@ -93,26 +92,26 @@ export default function CheckoutSuccessPage() {
         {status === 'checking' && (
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-10">
             <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-gray-700 border-t-emerald-500" />
-            <h1 className="mt-6 text-lg font-semibold text-gray-200">결제 확인 중...</h1>
+            <h1 className="mt-6 text-lg font-semibold text-gray-200">Confirming payment...</h1>
             <p className="mt-2 text-sm text-gray-500">
-              {attempts > 0 ? `재확인 중 (${attempts}/3)` : '잠시만 기다려주세요.'}
+              {attempts > 0 ? `Retrying (${attempts}/3)` : 'Please wait a moment.'}
             </p>
           </div>
         )}
 
         {status === 'paid' && (
           <div className="space-y-5">
-            {/* 결제 완료 카드 */}
+            {/* Payment confirmed card */}
             <div className="rounded-2xl border border-emerald-800/50 bg-emerald-950/20 p-8">
               <p className="text-5xl">✅</p>
-              <h1 className="mt-4 text-2xl font-bold text-gray-50">결제 완료</h1>
+              <h1 className="mt-4 text-2xl font-bold text-gray-50">Payment Complete</h1>
               {amount && (
                 <p className="mt-1 text-base font-semibold text-emerald-400">
                   ₩{amount.toLocaleString()}
                 </p>
               )}
               <p className="mt-3 text-sm text-gray-400">
-                제출물 원본 접근이 활성화되었습니다.
+                Full access to the submission has been unlocked.
               </p>
 
               <div className="mt-6 flex flex-col gap-3">
@@ -121,19 +120,19 @@ export default function CheckoutSuccessPage() {
                     href={`/tasks/${taskId}`}
                     className="w-full rounded-2xl bg-emerald-500 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors"
                   >
-                    결과물 보기
+                    View Deliverable
                   </Link>
                 )}
                 <Link
                   href="/dashboard"
                   className="w-full rounded-2xl border border-gray-700 py-2.5 text-sm text-gray-300 hover:border-gray-500 transition-colors"
                 >
-                  대시보드로 이동
+                  Go to Dashboard
                 </Link>
               </div>
             </div>
 
-            {/* 리뷰 작성 섹션 */}
+            {/* Review section */}
             {orderId && !hasReview && (
               <ReviewForm
                 orderId={orderId}
@@ -143,7 +142,7 @@ export default function CheckoutSuccessPage() {
 
             {hasReview && (
               <div className="rounded-2xl border border-gray-800 bg-gray-900/50 px-6 py-4">
-                <p className="text-sm text-gray-500">✓ 리뷰 작성이 완료되었습니다.</p>
+                <p className="text-sm text-gray-500">✓ Review submitted.</p>
               </div>
             )}
           </div>
@@ -152,16 +151,16 @@ export default function CheckoutSuccessPage() {
         {status === 'pending' && (
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-10">
             <p className="text-4xl">🔄</p>
-            <h1 className="mt-4 text-xl font-semibold text-gray-200">결제 처리 중</h1>
+            <h1 className="mt-4 text-xl font-semibold text-gray-200">Payment Processing</h1>
             <p className="mt-2 text-sm text-gray-500">
-              결제가 접수되었습니다. 처리 완료까지 수 분이 걸릴 수 있습니다.
+              Your payment has been received. It may take a few minutes to fully process.
             </p>
             <div className="mt-8">
               <Link
                 href="/dashboard"
                 className="rounded-2xl bg-emerald-500 px-8 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors"
               >
-                대시보드에서 확인
+                Check in Dashboard
               </Link>
             </div>
           </div>
@@ -170,16 +169,16 @@ export default function CheckoutSuccessPage() {
         {status === 'error' && (
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-10">
             <p className="text-4xl">⚠️</p>
-            <h1 className="mt-4 text-xl font-semibold text-gray-200">확인 실패</h1>
+            <h1 className="mt-4 text-xl font-semibold text-gray-200">Confirmation Failed</h1>
             <p className="mt-2 text-sm text-gray-500">
-              결제 상태를 확인할 수 없습니다. 대시보드에서 주문 내역을 확인해주세요.
+              Unable to verify payment status. Please check your order history in the dashboard.
             </p>
             <div className="mt-8">
               <Link
                 href="/dashboard"
                 className="rounded-2xl bg-emerald-500 px-8 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors"
               >
-                대시보드로 이동
+                Go to Dashboard
               </Link>
             </div>
           </div>

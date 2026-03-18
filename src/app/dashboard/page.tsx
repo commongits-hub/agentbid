@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/ui/badge'
 import { ReviewForm } from '@/components/reviews/ReviewForm'
 import { ReviewEditForm } from '@/components/reviews/ReviewEditForm'
 
-const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000 // 7일
+const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 type ReviewData = { id: string; rating: number; content: string; created_at: string }
 
@@ -31,23 +31,23 @@ type Payout = {
 }
 
 const DEMO_TASKS: MyTask[] = [
-  { id: 'demo-1', title: '모바일 앱 아이콘 디자인', status: 'open', budget_min: 50000, budget_max: 80000, submission_count: 4, created_at: new Date(Date.now()-3600000).toISOString() },
-  { id: 'demo-2', title: '신제품 론칭 보도자료 작성', status: 'completed', budget_min: 80000, budget_max: null, submission_count: 7, created_at: new Date(Date.now()-86400000).toISOString() },
-  { id: 'demo-3', title: '월간 매출 데이터 시각화', status: 'reviewing', budget_min: 100000, budget_max: 150000, submission_count: 2, created_at: new Date(Date.now()-172800000).toISOString() },
+  { id: 'demo-1', title: 'Mobile App Icon Design', status: 'open', budget_min: 50000, budget_max: 80000, submission_count: 4, created_at: new Date(Date.now()-3600000).toISOString() },
+  { id: 'demo-2', title: 'Product Launch Press Release', status: 'completed', budget_min: 80000, budget_max: null, submission_count: 7, created_at: new Date(Date.now()-86400000).toISOString() },
+  { id: 'demo-3', title: 'Monthly Sales Data Visualization', status: 'reviewing', budget_min: 100000, budget_max: 150000, submission_count: 2, created_at: new Date(Date.now()-172800000).toISOString() },
 ]
 const DEMO_PAYOUTS: Payout[] = [
-  { id: 'p1', amount: 80000, status: 'transferred', release_at: '', transferred_at: new Date(Date.now()-86400000).toISOString(), orders: { amount: 100000, paid_at: new Date(Date.now()-86400000).toISOString(), tasks: { title: '앱 아이콘 디자인' } } },
-  { id: 'p2', amount: 48000, status: 'released', release_at: '', transferred_at: null, orders: { amount: 60000, paid_at: new Date(Date.now()-3600000).toISOString(), tasks: { title: '보도자료 작성' } } },
-  { id: 'p3', amount: 32000, status: 'pending', release_at: new Date(Date.now()+86400000*5).toISOString(), transferred_at: null, orders: { amount: 40000, paid_at: new Date().toISOString(), tasks: { title: '마케팅 카피 세트' } } },
+  { id: 'p1', amount: 80000, status: 'transferred', release_at: '', transferred_at: new Date(Date.now()-86400000).toISOString(), orders: { amount: 100000, paid_at: new Date(Date.now()-86400000).toISOString(), tasks: { title: 'App Icon Design' } } },
+  { id: 'p2', amount: 48000, status: 'released', release_at: '', transferred_at: null, orders: { amount: 60000, paid_at: new Date(Date.now()-3600000).toISOString(), tasks: { title: 'Press Release Writing' } } },
+  { id: 'p3', amount: 32000, status: 'pending', release_at: new Date(Date.now()+86400000*5).toISOString(), transferred_at: null, orders: { amount: 40000, paid_at: new Date().toISOString(), tasks: { title: 'Marketing Copy Set' } } },
 ]
 
-// payout 우선순위 정렬: released/hold → pending → transferred/cancelled
 const PAYOUT_SORT: Record<string, number> = { released: 0, hold: 1, pending: 2, transferred: 3, cancelled: 4 }
 
 function timeAgo(iso: string) {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000)
-  if (h < 1) return '방금'; if (h < 24) return `${h}시간 전`
-  return `${Math.floor(h/24)}일 전`
+  if (h < 1) return 'Just now'
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h/24)}d ago`
 }
 
 export default function DashboardPage() {
@@ -99,8 +99,7 @@ export default function DashboardPage() {
 
         const paidOrders = orderList.filter(o => o.status === 'paid')
         if (paidOrders.length > 0) {
-          // TODO: N+1 — paid order 수만큼 API 호출 발생
-          // /api/reviews에 order_id IN (...) 배치 조회 엔드포인트 추가 필요
+          // TODO: N+1 — batch reviews endpoint needed (/api/reviews?order_id IN (...))
           const reviewChecks = await Promise.all(
             paidOrders.map(o =>
               fetch(`/api/reviews?order_id=${o.id}`, {
@@ -139,7 +138,6 @@ export default function DashboardPage() {
     const ordersNeedingReview = myOrders.filter(o => o.status === 'paid' && !reviewMap.has(o.id))
     const paidTotal           = myOrders.filter(o => o.status === 'paid').reduce((s, o) => s + o.amount, 0)
 
-    // 주문 정렬: 리뷰 미작성 paid 최상단 → 리뷰 완료 paid → 나머지(cancelled/refunded/pending)
     const ORDER_SORT = (o: MyOrder) => {
       if (o.status === 'paid' && !reviewMap.has(o.id)) return 0
       if (o.status === 'paid' && reviewMap.has(o.id))  return 1
@@ -151,24 +149,22 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-[#030712]">
         <Nav />
         <main className="mx-auto max-w-6xl px-4 py-10">
-          {/* Header */}
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-50">대시보드</h1>
+            <h1 className="text-2xl font-bold text-gray-50">Dashboard</h1>
             <Link
               href="/tasks/new"
               className="rounded-2xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors"
             >
-              + 작업 등록
+              + Post Task
             </Link>
           </div>
 
           {isDemo && (
             <div className="mt-4 rounded-2xl border border-amber-800/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-400">
-              샘플 데이터 표시 중 — 작업을 등록하면 실제 데이터가 표시됩니다.
+              Showing sample data — post a task to see real activity here.
             </div>
           )}
 
-          {/* 지금 해야 할 일 */}
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <Link
               href="/tasks"
@@ -178,12 +174,12 @@ export default function DashboardPage() {
                   : 'border-gray-800 bg-gray-900 hover:border-gray-700'
               }`}
             >
-              <p className="text-xs text-gray-500">제출 검토 필요</p>
+              <p className="text-xs text-gray-500">Submissions to review</p>
               <p className={`mt-1 text-2xl font-bold ${tasksNeedingReview.length > 0 ? 'text-blue-400' : 'text-gray-50'}`}>
-                {tasksNeedingReview.length}건
+                {tasksNeedingReview.length}
               </p>
               <p className="mt-1 text-xs text-gray-600 group-hover:text-gray-500 transition-colors">
-                {tasksNeedingReview.length > 0 ? '제출물을 확인하고 선택하세요 →' : '아직 제출물이 없습니다'}
+                {tasksNeedingReview.length > 0 ? 'Review and select a submission →' : 'No submissions yet'}
               </p>
             </Link>
 
@@ -192,12 +188,12 @@ export default function DashboardPage() {
                 ? 'border-amber-800/60 bg-amber-950/20'
                 : 'border-gray-800 bg-gray-900'
             }`}>
-              <p className="text-xs text-gray-500">리뷰 작성 필요</p>
+              <p className="text-xs text-gray-500">Reviews pending</p>
               <p className={`mt-1 text-2xl font-bold ${ordersNeedingReview.length > 0 ? 'text-amber-400' : 'text-gray-50'}`}>
-                {ordersNeedingReview.length}건
+                {ordersNeedingReview.length}
               </p>
               <p className="mt-1 text-xs text-gray-600">
-                {paidTotal > 0 ? `총 결제 ₩${paidTotal.toLocaleString()}` : '아직 결제 완료 주문 없음'}
+                {paidTotal > 0 ? `Total spent: ₩${paidTotal.toLocaleString()}` : 'No completed orders yet'}
               </p>
             </div>
           </div>
@@ -205,20 +201,20 @@ export default function DashboardPage() {
           {/* Tasks */}
           <section className="mt-10">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-50">내 작업</h2>
-              <Link href="/tasks" className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">마켓 보기 →</Link>
+              <h2 className="text-lg font-semibold text-gray-50">My Tasks</h2>
+              <Link href="/tasks" className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">Browse Market →</Link>
             </div>
             {myTasks.length === 0 ? (
               <div className="mt-4 rounded-2xl border border-dashed border-gray-800 p-10 text-center">
-                <p className="text-sm text-gray-500">아직 등록한 작업이 없습니다.</p>
+                <p className="text-sm text-gray-500">No tasks yet.</p>
                 <Link href="/tasks/new" className="mt-3 inline-block text-sm text-emerald-400 hover:underline">
-                  첫 작업 등록하기 →
+                  Post your first task →
                 </Link>
               </div>
             ) : (
               <div className="mt-4 space-y-3">
                 {myTasks.map(t => {
-                  const isDemo = t.id.startsWith('demo-')
+                  const isDemoTask = t.id.startsWith('demo-')
                   const needsAttention = t.status === 'open' && t.submission_count > 0
                   const cardCls = `flex items-center justify-between gap-4 rounded-2xl border p-4 transition-colors ${
                     needsAttention
@@ -230,16 +226,16 @@ export default function DashboardPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-sm font-medium text-gray-50">{t.title}</p>
-                          {isDemo && (
-                            <span className="shrink-0 rounded-md bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500">샘플</span>
+                          {isDemoTask && (
+                            <span className="shrink-0 rounded-md bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500">Sample</span>
                           )}
                         </div>
                         <p className="mt-0.5 text-xs text-gray-500">
-                          {timeAgo(t.created_at)} · 제출{' '}
+                          {timeAgo(t.created_at)} ·{' '}
                           <span className={`font-medium ${needsAttention ? 'text-blue-400' : 'text-gray-400'}`}>
                             {t.submission_count}
-                          </span>건
-                          {needsAttention && <span className="ml-2 text-blue-500">검토 필요</span>}
+                          </span>{' '}submission{t.submission_count !== 1 ? 's' : ''}
+                          {needsAttention && <span className="ml-2 text-blue-500">Review needed</span>}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
@@ -252,7 +248,7 @@ export default function DashboardPage() {
                       </div>
                     </>
                   )
-                  return isDemo ? (
+                  return isDemoTask ? (
                     <div key={t.id} className={`${cardCls} cursor-default`}>{inner}</div>
                   ) : (
                     <Link key={t.id} href={`/tasks/${t.id}`} className={cardCls}>{inner}</Link>
@@ -262,10 +258,10 @@ export default function DashboardPage() {
             )}
           </section>
 
-          {/* Orders — 리뷰 필요 우선 */}
+          {/* Orders */}
           {myOrders.length > 0 && (
             <section className="mt-10">
-              <h2 className="text-lg font-semibold text-gray-50">최근 주문</h2>
+              <h2 className="text-lg font-semibold text-gray-50">Recent Orders</h2>
               <div className="mt-4 space-y-3">
                 {sortedOrders.map(o => {
                   const needsReview = o.status === 'paid' && !reviewMap.has(o.id)
@@ -285,7 +281,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="text-sm font-medium text-gray-50">₩{o.amount.toLocaleString()}</p>
                           <p className="mt-0.5 text-xs text-gray-500">
-                            {o.paid_at ? `결제 완료 · ${timeAgo(o.paid_at)}` : timeAgo(o.created_at)}
+                            {o.paid_at ? `Paid · ${timeAgo(o.paid_at)}` : timeAgo(o.created_at)}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -294,18 +290,18 @@ export default function DashboardPage() {
                               onClick={() => setReviewingOrderId(o.id)}
                               className="rounded-xl border border-amber-800/60 bg-amber-950/30 px-3 py-1 text-xs font-medium text-amber-400 hover:border-amber-700 transition-colors"
                             >
-                              리뷰 작성 →
+                              Leave a Review →
                             </button>
                           )}
                           {o.status === 'paid' && reviewMap.has(o.id) && editingOrderId !== o.id && (
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-600">리뷰 완료 ✓</span>
+                              <span className="text-xs text-gray-600">Reviewed ✓</span>
                               {Date.now() - new Date(reviewMap.get(o.id)!.created_at).getTime() < EDIT_WINDOW_MS && (
                                 <button
                                   onClick={() => setEditingOrderId(o.id)}
                                   className="rounded-xl border border-gray-700 px-3 py-1 text-xs text-gray-400 hover:border-gray-600 hover:text-gray-300 transition-colors"
                                 >
-                                  수정
+                                  Edit
                                 </button>
                               )}
                             </div>
@@ -375,39 +371,37 @@ export default function DashboardPage() {
   )
 
   const payoutStatusMeta: Record<string, { label: string; cls: string }> = {
-    pending:     { label: '정산 대기 중 (7일 후 처리)', cls: 'text-amber-400' },
-    hold:        { label: '보류 — Stripe 계좌 연결 필요', cls: 'text-orange-400' },
-    released:    { label: '정산 가능 — 지급 처리 중',    cls: 'text-blue-400' },
-    transferred: { label: '지급 완료',                   cls: 'text-emerald-400' },
-    cancelled:   { label: '환불로 인해 취소됨',           cls: 'text-gray-500' },
+    pending:     { label: 'Pending payout (releases in 7 days)', cls: 'text-amber-400' },
+    hold:        { label: 'On hold — Stripe account required',    cls: 'text-orange-400' },
+    released:    { label: 'Ready — payout in progress',          cls: 'text-blue-400' },
+    transferred: { label: 'Transferred',                         cls: 'text-emerald-400' },
+    cancelled:   { label: 'Cancelled due to refund',             cls: 'text-gray-500' },
   }
 
-  // Stripe 미연결: 행동 유도 최우선
   if (!stripeConnected) {
     return (
       <div className="min-h-screen bg-[#030712]">
         <Nav />
         <main className="mx-auto max-w-6xl px-4 py-10">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-50">Provider 대시보드</h1>
+            <h1 className="text-2xl font-bold text-gray-50">Provider Dashboard</h1>
             <Link href="/tasks" className="text-sm text-gray-400 hover:text-gray-300 transition-colors">
-              작업 탐색 →
+              Browse Tasks →
             </Link>
           </div>
 
-          {/* Stripe 연결 CTA — 블로킹 */}
           <div className="mt-6 rounded-2xl border border-amber-700/60 bg-amber-950/30 p-8">
             <div className="flex items-start gap-4">
               <div className="shrink-0 rounded-xl border border-amber-800 bg-amber-950/50 p-3">
                 <span className="text-2xl">💳</span>
               </div>
               <div className="flex-1">
-                <p className="text-base font-semibold text-amber-400">Stripe 계좌 연결이 필요합니다</p>
+                <p className="text-base font-semibold text-amber-400">Connect your Stripe account</p>
                 <p className="mt-1 text-sm text-amber-600">
-                  정산 가능 상태가 되어도 Stripe 계좌 없이는 지급이 보류됩니다.
+                  Payouts will be held until you connect a Stripe account.
                   {totalHold > 0 && (
                     <span className="ml-1 font-medium text-orange-400">
-                      현재 ₩{totalHold.toLocaleString()} 보류 중
+                      ₩{totalHold.toLocaleString()} currently on hold.
                     </span>
                   )}
                 </p>
@@ -415,7 +409,7 @@ export default function DashboardPage() {
                   href="/onboarding/stripe"
                   className="mt-4 inline-block rounded-2xl bg-amber-500 px-6 py-2.5 text-sm font-semibold text-gray-950 hover:bg-amber-400 transition-colors"
                 >
-                  지금 Stripe 연결하기 →
+                  Connect Stripe →
                 </Link>
               </div>
             </div>
@@ -423,14 +417,13 @@ export default function DashboardPage() {
 
           {isDemo && (
             <div className="mt-4 rounded-2xl border border-gray-800 bg-gray-900/50 px-4 py-3 text-sm text-gray-500">
-              샘플 데이터 표시 중 — 작업을 완료하면 실제 정산 내역이 표시됩니다.
+              Showing sample data — complete a task to see real payouts here.
             </div>
           )}
 
-          {/* 정산 내역 (연결 전에도 확인 가능) */}
           {sortedPayouts.length > 0 && (
             <section className="mt-8">
-              <h2 className="text-lg font-semibold text-gray-50">정산 내역</h2>
+              <h2 className="text-lg font-semibold text-gray-50">Payout History</h2>
               <div className="mt-4 space-y-3">
                 {sortedPayouts.map(p => (
                   <PayoutCard key={p.id} p={p} meta={payoutStatusMeta} />
@@ -443,45 +436,42 @@ export default function DashboardPage() {
     )
   }
 
-  // Stripe 연결 완료
   return (
     <div className="min-h-screen bg-[#030712]">
       <Nav />
       <main className="mx-auto max-w-6xl px-4 py-10">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-50">Provider 대시보드</h1>
+            <h1 className="text-2xl font-bold text-gray-50">Provider Dashboard</h1>
             <div className="mt-1 flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span className="text-xs text-emerald-400">Stripe 연결됨</span>
+              <span className="text-xs text-emerald-400">Stripe connected</span>
             </div>
           </div>
           <Link
             href="/tasks"
             className="rounded-2xl border border-gray-700 px-5 py-2.5 text-sm text-gray-300 hover:border-gray-500 hover:text-gray-50 transition-colors"
           >
-            새 작업 탐색 →
+            Browse Tasks →
           </Link>
         </div>
 
         {isDemo && (
           <div className="mt-4 rounded-2xl border border-amber-800/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-400">
-            샘플 데이터 표시 중 — 작업을 완료하면 실제 정산 내역이 표시됩니다.
+            Showing sample data — complete a task to see real payouts here.
           </div>
         )}
 
-        {/* Stats — hold 분리, 행동 필요 우선 */}
         <div className="mt-6 grid gap-4 sm:grid-cols-4">
           <div className={`rounded-2xl border p-5 ${
             totalReleased > 0 ? 'border-blue-800/60 bg-blue-950/20' : 'border-gray-800 bg-gray-900'
           }`}>
-            <p className="text-xs text-gray-500">정산 가능</p>
+            <p className="text-xs text-gray-500">Available</p>
             <p className={`mt-1 text-2xl font-bold ${totalReleased > 0 ? 'text-blue-400' : 'text-gray-50'}`}>
               ₩{totalReleased.toLocaleString()}
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
-              {totalReleased > 0 ? '지급 처리 진행 중' : '아직 정산 가능 금액 없음'}
+              {totalReleased > 0 ? 'Payout in progress' : 'Nothing available yet'}
             </p>
           </div>
 
@@ -489,41 +479,40 @@ export default function DashboardPage() {
             totalHold > 0 ? 'border-orange-800/60 bg-orange-950/20' : 'border-gray-800 bg-gray-900'
           }`}>
             <p className={`text-xs ${totalHold > 0 ? 'text-orange-400' : 'text-gray-500'}`}>
-              {totalHold > 0 ? '⚠ 보류 (조치 필요)' : '보류'}
+              {totalHold > 0 ? '⚠ On Hold' : 'On Hold'}
             </p>
             <p className={`mt-1 text-2xl font-bold ${totalHold > 0 ? 'text-orange-400' : 'text-gray-50'}`}>
               ₩{totalHold.toLocaleString()}
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
-              {totalHold > 0 ? 'Stripe 계좌 연결 필요' : '보류 없음'}
+              {totalHold > 0 ? 'Action required' : 'Nothing on hold'}
             </p>
           </div>
 
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5">
-            <p className="text-xs text-gray-500">7일 대기</p>
+            <p className="text-xs text-gray-500">Pending (7-day hold)</p>
             <p className="mt-1 text-2xl font-bold text-amber-400">
               ₩{totalPending.toLocaleString()}
             </p>
-            <p className="mt-0.5 text-xs text-gray-600">구매 후 7일 후 정산</p>
+            <p className="mt-0.5 text-xs text-gray-600">Releases 7 days after purchase</p>
           </div>
 
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5">
-            <p className="text-xs text-gray-500">지급 완료</p>
+            <p className="text-xs text-gray-500">Total Transferred</p>
             <p className="mt-1 text-2xl font-bold text-emerald-400">
               ₩{totalTransferred.toLocaleString()}
             </p>
-            <p className="mt-0.5 text-xs text-gray-600">누적 수령액</p>
+            <p className="mt-0.5 text-xs text-gray-600">Cumulative earnings</p>
           </div>
         </div>
 
-        {/* Payout list — urgency 정렬 */}
         <section className="mt-10">
-          <h2 className="text-lg font-semibold text-gray-50">정산 내역</h2>
+          <h2 className="text-lg font-semibold text-gray-50">Payout History</h2>
           {sortedPayouts.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-dashed border-gray-800 p-10 text-center">
-              <p className="text-sm text-gray-500">아직 정산 내역이 없습니다.</p>
+              <p className="text-sm text-gray-500">No payouts yet.</p>
               <Link href="/tasks" className="mt-3 inline-block text-sm text-emerald-400 hover:underline">
-                작업 탐색하기 →
+                Browse tasks →
               </Link>
             </div>
           ) : (
@@ -539,8 +528,7 @@ export default function DashboardPage() {
   )
 }
 
-// TODO: PayoutCard → src/components/payouts/PayoutCard.tsx 분리 예정
-//   현재 dashboard 인라인 정의 (584줄+). 다른 화면에서 재사용 필요 시 이전.
+// TODO: Extract to src/components/payouts/PayoutCard.tsx when reused elsewhere
 function PayoutCard({
   p,
   meta,
@@ -548,7 +536,6 @@ function PayoutCard({
   p: Payout
   meta: Record<string, { label: string; cls: string }>
 }) {
-  const isUrgent = p.status === 'released' || p.status === 'hold'
   return (
     <div className={`rounded-2xl border p-5 ${
       p.status === 'released' ? 'border-blue-800/40 bg-blue-950/10' :
@@ -558,28 +545,28 @@ function PayoutCard({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-gray-50">
-            {p.orders?.tasks?.title ?? '(작업 없음)'}
+            {p.orders?.tasks?.title ?? '(No task)'}
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            총 결제액 ₩{(p.orders?.amount ?? 0).toLocaleString()} →{' '}
-            <span className="font-medium text-gray-300">정산액 ₩{p.amount.toLocaleString()}</span>
-            <span className="ml-1 text-gray-600">(수수료 20%)</span>
+            Order total ₩{(p.orders?.amount ?? 0).toLocaleString()} →{' '}
+            <span className="font-medium text-gray-300">Payout ₩{p.amount.toLocaleString()}</span>
+            <span className="ml-1 text-gray-600">(20% fee)</span>
           </p>
           <p className={`mt-1 text-xs ${meta[p.status]?.cls ?? 'text-gray-500'}`}>
             {p.status === 'pending' && p.release_at
-              ? `정산 가능일: ${new Date(p.release_at).toLocaleDateString('ko-KR')}`
+              ? `Releases: ${new Date(p.release_at).toLocaleDateString('en-US')}`
               : meta[p.status]?.label}
             {p.status === 'transferred' && p.transferred_at
-              ? ` · ${new Date(p.transferred_at).toLocaleDateString('ko-KR')}` : ''}
+              ? ` · ${new Date(p.transferred_at).toLocaleDateString('en-US')}` : ''}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <StatusBadge status={p.status} />
           {p.status === 'released' && (
-            <span className="text-[10px] text-gray-600">처리 중</span>
+            <span className="text-[10px] text-gray-600">Processing</span>
           )}
           {p.status === 'hold' && (
-            <span className="text-[10px] text-orange-700">조치 필요</span>
+            <span className="text-[10px] text-orange-700">Action needed</span>
           )}
         </div>
       </div>
