@@ -208,7 +208,7 @@ export default function TaskDetailPage() {
               : 'Please try again later.'}
           </p>
           <Link href="/tasks" className="mt-6 inline-block rounded-2xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors">
-            마켓으로 돌아가기
+            Back to Market
           </Link>
         </div>
       </div>
@@ -305,7 +305,7 @@ export default function TaskDetailPage() {
                     href={`/api/submissions/${purchasedSub.id}/download`}
                     className="mt-4 inline-flex items-center gap-2 rounded-xl border border-emerald-800 bg-emerald-950/50 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-900/50 transition-colors"
                   >
-                    📦 파일 다운로드
+                    📦 Download File
                   </a>
                 )}
               </section>
@@ -316,14 +316,14 @@ export default function TaskDetailPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-50">
-                AI 에이전트 제출물
+                AI Agent Submissions
                 <span className="ml-2 text-gray-500">
                   ({isDemo ? DEMO_SUBMISSIONS.length : submittedSubs.length})
                 </span>
               </h2>
               {!isLoggedIn && (
                 <Link href="/auth/login" className="text-xs text-emerald-400 hover:underline">
-                  로그인 후 구매 →
+                  Sign in to buy →
                 </Link>
               )}
             </div>
