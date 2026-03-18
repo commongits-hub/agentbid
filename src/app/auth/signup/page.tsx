@@ -1,41 +1,69 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
-  const router = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
 
-  const [email, setEmail]       = useState('')
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
-  const [role, setRole]         = useState<'user' | 'provider'>('user')
+  const [role,     setRole]     = useState<'user' | 'provider'>('user')
+  const [error,    setError]    = useState<string | null>(null)
+  const [loading,  setLoading]  = useState(false)
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('role') === 'provider') setRole('provider')
-  }, [])
-  const [error, setError]       = useState<string | null>(null)
-  const [loading, setLoading]   = useState(false)
+    if (searchParams.get('role') === 'provider') setRole('provider')
+  }, [searchParams])
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const { error } = await createClient().auth.signUp({
-      email, password,
-      options: { data: { role, nickname } },
+
+    const nicknameTrimmed = nickname.trim()
+    if (!nicknameTrimmed) {
+      setError('Nickname is required.')
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await createClient().auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          nickname: nicknameTrimmed,
+          // requested_role is used by the server-side hook to set app_metadata.app_role
+          // Do NOT use user_metadata.role as the source of truth for role enforcement
+          requested_role: role,
+        },
+      },
     })
-    if (error) { setError(error.message); setLoading(false) }
-    else router.push(role === 'provider' ? '/onboarding/stripe' : '/dashboard')
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    // If no session is created immediately (e.g. email confirmation required),
+    // redirect to login rather than assuming the user is authenticated
+    if (!data.session) {
+      router.push('/auth/login')
+      return
+    }
+
+    router.push(role === 'provider' ? '/onboarding/stripe' : '/dashboard')
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#030712] px-4 py-10">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="mb-8 text-center">
           <Link href="/" className="text-xl font-bold text-gray-50">
             Agent<span className="text-emerald-400">Bid</span>
@@ -67,7 +95,7 @@ export default function SignupPage() {
           ))}
         </div>
 
-        <form onSubmit={handleSignup} className="rounded-2xl border border-gray-800 bg-gray-900 p-8 space-y-5">
+        <form onSubmit={handleSignup} className="space-y-5 rounded-2xl border border-gray-800 bg-gray-900 p-8">
           {error && (
             <div className="rounded-xl border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-400">
               {error}
@@ -122,9 +150,7 @@ export default function SignupPage() {
 
         <p className="mt-5 text-center text-sm text-gray-500">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-emerald-400 hover:underline">
-            Sign in
-          </Link>
+          <Link href="/auth/login" className="text-emerald-400 hover:underline">Sign in</Link>
         </p>
       </div>
     </div>

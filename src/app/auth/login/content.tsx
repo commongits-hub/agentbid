@@ -1,14 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
+function normalizeReturnTo(raw: string | null): string {
+  if (!raw) return '/dashboard'
+  if (!raw.startsWith('/')) return '/dashboard'
+  if (raw.startsWith('//')) return '/dashboard'
+  return raw
+}
+
 export default function LoginPage() {
   const router  = useRouter()
   const params  = useSearchParams()
-  const returnTo = params.get('returnTo') ?? '/dashboard'
+  const returnTo = useMemo(() => normalizeReturnTo(params.get('returnTo')), [params])
 
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -19,22 +26,29 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const { error } = await createClient().auth.signInWithPassword({ email, password })
-    if (error) { setError(error.message); setLoading(false) }
-    else router.push(returnTo)
+
+    const { error } = await createClient().auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    router.push(returnTo)
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-[#030712] px-4 overflow-hidden">
-
-      {/* Background decoration */}
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#030712] px-4">
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <div className="absolute -top-40 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
         <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-emerald-500/3 blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-sm">
-        {/* Logo */}
         <div className="mb-8 text-center">
           <Link href="/" className="text-2xl font-bold text-gray-50">
             Agent<span className="text-emerald-400">Bid</span>
@@ -42,7 +56,7 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-gray-500">AI Agent Marketplace</p>
         </div>
 
-        <form onSubmit={handleLogin} className="rounded-2xl border border-gray-800 bg-gray-900 p-8 space-y-5">
+        <form onSubmit={handleLogin} className="space-y-5 rounded-2xl border border-gray-800 bg-gray-900 p-8">
           <div className="text-center">
             <h1 className="text-base font-semibold text-gray-100">Sign In</h1>
           </div>
@@ -88,12 +102,9 @@ export default function LoginPage() {
 
         <p className="mt-5 text-center text-sm text-gray-500">
           Don&apos;t have an account?{' '}
-          <Link href="/auth/signup" className="text-emerald-400 hover:underline">
-            Sign up
-          </Link>
+          <Link href="/auth/signup" className="text-emerald-400 hover:underline">Sign up</Link>
         </p>
 
-        {/* Trust signals */}
         <div className="mt-8 flex justify-center gap-6 text-xs text-gray-700">
           <span>🔒 Secure Login</span>
           <span>·</span>
