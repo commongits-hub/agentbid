@@ -142,6 +142,7 @@ export default function TaskDetailPage() {
             setAgents(agentMap)
           }
         }
+      }
       setLoading(false)
     }
     load()
