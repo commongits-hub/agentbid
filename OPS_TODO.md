@@ -1,51 +1,104 @@
-# AgentBid — 운영 TODO (live 전환 기준)
+# OPS_TODO.md
+# AgentBid — 운영 TODO (Live 전환 기준)
 
-> 기준 커밋: `f61eea6` | Migration chain: 001~042 완결 (037 제외)  
-> 작성일: 2026-03-16  
-> **이 파일은 개발 TODO가 아니다. 환경/운영 설정만 다룬다.**
-
----
-
-## 🔴 live 전환 전 필수
-
-| # | 항목 | 현재 상태 | 액션 |
-|---|---|---|---|
-| L-01 | Stripe live key 주입 | `sk_test_...` 사용 중 | Adam이 Stripe Dashboard에서 비즈니스 정보 제출 → `charges_enabled=true` 확인 후 `sk_live_...` 주입 |
-| L-02 | live webhook endpoint 등록 | test webhook만 등록됨 | Stripe Dashboard → `https://<prod-domain>/api/webhooks/stripe` 등록 |
-| L-03 | live webhook secret 반영 | `whsec_test_...` 사용 중 | live endpoint 등록 후 `STRIPE_WEBHOOK_SECRET=whsec_live_...` 교체 |
-| L-04 | Vercel env 교체 | test key 세팅 | L-01~03 완료 후 Vercel Dashboard env 일괄 교체 → auto-redeploy 확인 |
-| L-05 | live Connect onboarding 1회 검증 | 미검증 | live 전환 후 신규 provider 계정으로 onboarding URL 생성 + 완료 플로우 확인 |
-| L-06 | 소액 실결제 smoke test | 미수행 | live key로 실제 카드 결제 1회 → `orders.status=paid`, `payouts.status=pending` 확인 |
+Last updated: 2026-03-19
 
 ---
 
-## 🟡 live 전환 후 조기 확인
+## 즉시 실행 (live 전환 전 필수)
 
-| # | 항목 | 기준 |
-|---|---|---|
-| A-01 | CRON_SECRET 운영 주입 | Supabase Dashboard → Functions → Secrets → `CRON_SECRET=<random>` 주입 + transfer-payouts cron `x-cron-secret` 헤더 확인 |
-| A-02 | payout/transfer 로그 확인 | 첫 `released → transferred` 전환 후 Edge Function 로그 확인 |
-| A-03 | hold payout 해제 흐름 확인 | Connect onboarding 완료 후 `hold → released/pending` 자동 전환 확인 |
-| A-04 | `reset_stale_webhook_claims()` 초기 1회 실행 | 배포 직후 Supabase SQL Editor에서 실행 (`SELECT reset_stale_webhook_claims();`) |
+### [STRIPE] Vercel 환경변수 교체
+```
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_live_...
+```
+→ Vercel Dashboard → Settings → Environment Variables
+
+### [STRIPE] Live Webhook 등록
+```
+URL: https://agentbid.vercel.app/api/webhooks/stripe
+Events:
+  - checkout.session.completed
+  - payment_intent.payment_failed
+  - charge.refunded
+  - account.updated
+```
+
+### [PAYOUT] CRON_SECRET 주입
+```
+CRON_SECRET=<random 32+ char secret>
+```
+→ cron 호출 측: `Authorization: Bearer <CRON_SECRET>` 또는 `x-cron-secret: <CRON_SECRET>` 헤더 확인
+
+### [SUPABASE] Site URL 갱신
+```
+Auth → URL Configuration → Site URL = https://agentbid.vercel.app
+Redirect URLs에 live 도메인 추가
+```
+
+### [APP] NEXT_PUBLIC_APP_URL 확인
+```
+NEXT_PUBLIC_APP_URL=https://agentbid.vercel.app
+```
+→ success_url / onboarding return_url이 이 값 기준으로 생성됨
 
 ---
 
-## 🟢 live 안정화 후 (운영 항목만)
+## Live 전환 후 즉시 실행
 
-| # | 항목 | 내용 |
-|---|---|---|
-| B-01 | hold 누적 모니터링 강화 | `release_matured_payouts` NOTICE 기반 수동 확인 → 알림/대시보드 지표로 승격 검토 |
-| B-02 | stale webhook lock 정기 점검 | `reset_stale_webhook_claims()` 실행 결과(해제 row 수) 주간 점검 |
-| B-03 | test 데이터 정리 주기 | test mode orders/payouts/reports 주기 정리 및 기준 샘플 계정 유지 |
+### 실결제 smoke (소액 1회)
+1. 새 user/provider 계정 생성
+2. task 등록 → submission 제출
+3. checkout → 실결제
+4. webhook 수신 확인 (Stripe Dashboard → Webhooks)
+5. orders.status = paid, submissions.status = purchased 확인
+6. success page 도착 확인
 
----
-
-## ❌ 포함하지 않는 항목
-
-- 개발 TODO (새 기능, UI 개선 등)
-- 이미 해결된 기술 부채 (migration 039~042로 닫힌 항목)
-- 코드 리뷰 반영 완료 항목 (CR-01~04, UI-1~5)
+### payout cron 1회 수동 트리거
+- released 상태 payout이 있으면 transfer-payouts 호출
+- Stripe Transfer 생성 확인
 
 ---
 
-*이 파일은 live 전환 완료 후 삭제하거나 OPERATIONS.md에 통합한다.*
+## 운영 데이터 정리 (live 전환 전 or 후)
+
+### 삭제 대상 test 계정
+- smoke.provider.*@*
+- qa.test.agentbid@gmail.com
+- qa.provider.agentbid@gmail.com
+- qa.regression.agentbid@gmail.com
+- qa-h2@agentbid.dev
+
+### 삭제 방법
+Supabase Dashboard → Auth → Users → 해당 계정 삭제
+(cascade로 public.users, agents, tasks, submissions, orders, reviews, payouts 정리됨)
+
+---
+
+## 운영 중 주기적 점검
+
+### Stale lock 점검 (webhook)
+```sql
+SELECT id, stripe_event_id, processing, processing_started_at
+FROM webhook_events
+WHERE processing = true
+  AND processing_started_at < NOW() - INTERVAL '10 minutes';
+```
+→ 있으면 수동 reset: `UPDATE webhook_events SET processing=false WHERE ...`
+
+### Payout hold 점검
+```sql
+SELECT p.id, p.amount, p.status, a.stripe_account_id
+FROM payouts p
+JOIN orders o ON o.id = p.order_id
+JOIN submissions s ON s.id = o.submission_id
+JOIN agents a ON a.id = s.agent_id
+WHERE p.status = 'hold';
+```
+→ hold 상태 = provider가 Stripe 미연결. 연결 후 자동 released 전환됨
+
+---
+
+## 완료 기준
+
+PRE_LIVE_CHECKLIST.md 전 항목 ✅ → live 전환 가능
