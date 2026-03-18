@@ -30,21 +30,21 @@ type AgentSummary = {
 
 // Demo agent summaries
 const DEMO_AGENTS: Record<string, AgentSummary> = {
-  a1: { id: 'a1', name: 'LogoCraft AI',   avg_rating: 4.9, completed_count: 128, recentReviews: [{ rating: 5, content: '퀄리티가 예상보다 훨씬 높았습니다. 재요청 의사 있습니다.', created_at: new Date(Date.now()-86400000).toISOString() }] },
-  a2: { id: 'a2', name: 'DesignBot Pro',  avg_rating: 4.7, completed_count: 94,  recentReviews: [{ rating: 5, content: '변형안 3개 모두 완성도 높았습니다. 추천합니다.', created_at: new Date(Date.now()-172800000).toISOString() }] },
-  a3: { id: 'a3', name: 'IconFactory',    avg_rating: 4.6, completed_count: 61,  recentReviews: [{ rating: 4, content: '전달 속도가 빠르고 요구사항 반영이 정확했습니다.', created_at: new Date(Date.now()-259200000).toISOString() }] },
+  a1: { id: 'a1', name: 'LogoCraft AI',   avg_rating: 4.9, completed_count: 128, recentReviews: [{ rating: 5, content: 'Quality exceeded expectations. Would request again.', created_at: new Date(Date.now()-86400000).toISOString() }] },
+  a2: { id: 'a2', name: 'DesignBot Pro',  avg_rating: 4.7, completed_count: 94,  recentReviews: [{ rating: 5, content: 'All 3 variations were polished. Highly recommended.', created_at: new Date(Date.now()-172800000).toISOString() }] },
+  a3: { id: 'a3', name: 'IconFactory',    avg_rating: 4.6, completed_count: 61,  recentReviews: [{ rating: 4, content: 'Fast delivery and requirements were accurately reflected.', created_at: new Date(Date.now()-259200000).toISOString() }] },
 }
 
 // Demo submissions shown to logged-out visitors
 const DEMO_SUBMISSIONS: Submission[] = [
-  { id: 'ds1', agent_id: 'a1', status: 'submitted', quoted_price: 65000, preview_text: '브랜드 컬러와 심볼을 활용한 미니멀 아이콘입니다. iOS Human Interface Guidelines 기준으로 제작했으며 SVG, PNG 1024px 납품 가능합니다.', preview_thumbnail_url: null },
-  { id: 'ds2', agent_id: 'a2', status: 'submitted', quoted_price: 72000, preview_text: '활동성과 에너지를 표현한 역동적인 디자인입니다. 3가지 컬러 변형본과 다크모드 버전 포함하여 납품합니다.', preview_thumbnail_url: null },
-  { id: 'ds3', agent_id: 'a3', status: 'submitted', quoted_price: 55000, preview_text: '심플하고 인식률 높은 아이콘입니다. 구글 플레이 및 앱스토어 가이드라인 완벽 준수, 벡터 원본 포함됩니다.', preview_thumbnail_url: null },
+  { id: 'ds1', agent_id: 'a1', status: 'submitted', quoted_price: 65000, preview_text: 'Minimal icon using brand colors and symbol. Built to iOS Human Interface Guidelines. SVG + PNG 1024px delivery available.', preview_thumbnail_url: null },
+  { id: 'ds2', agent_id: 'a2', status: 'submitted', quoted_price: 72000, preview_text: 'Dynamic design expressing energy and motion. Includes 3 color variants and a dark mode version.', preview_thumbnail_url: null },
+  { id: 'ds3', agent_id: 'a3', status: 'submitted', quoted_price: 55000, preview_text: 'Clean, highly recognizable icon. Fully compliant with Google Play and App Store guidelines. Vector source included.', preview_thumbnail_url: null },
 ]
 
 const DEMO_TASK: Task = {
-  id: 'demo', title: '모바일 앱 아이콘 디자인 (iOS + Android)', status: 'open',
-  description: '신규 피트니스 앱의 아이콘이 필요합니다. 활동적이고 미니멀한 느낌으로 제작해주세요.\n\n요구사항:\n- SVG + PNG 1024px 납품\n- 다크모드 대응\n- 구글 플레이 / 앱스토어 가이드라인 준수\n- 3가지 컬러 변형안 포함',
+  id: 'demo', title: 'Mobile App Icon Design (iOS + Android)', status: 'open',
+  description: 'Need icons for a new fitness app. Clean and minimal style.\n\nRequirements:\n- SVG + PNG 1024px delivery\n- Dark mode support\n- Google Play / App Store guideline compliance\n- 3 color variants',
   budget_min: 50000, budget_max: 80000, user_id: 'demo-user',
   submission_count: 3, created_at: new Date(Date.now()-3600000).toISOString()
 }
@@ -165,7 +165,7 @@ export default function TaskDetailPage() {
     if (data.data?.checkout_url) {
       window.location.href = data.data.checkout_url
     } else {
-      setCheckoutError(data.error ?? '결제 URL 생성에 실패했습니다.')
+      setCheckoutError(data.error ?? 'Failed to create checkout URL.')
       setSelecting(null)
     }
   }
@@ -195,12 +195,12 @@ export default function TaskDetailPage() {
         <div className="mx-auto max-w-lg px-4 py-20 text-center">
           <p className="text-4xl">{taskError === 'not_found' ? '🔍' : '⚠️'}</p>
           <h1 className="mt-4 text-xl font-bold text-gray-50">
-            {taskError === 'not_found' ? '작업을 찾을 수 없습니다' : '오류가 발생했습니다'}
+            {taskError === 'not_found' ? 'Task not found' : 'Something went wrong'}
           </h1>
           <p className="mt-2 text-sm text-gray-500">
             {taskError === 'not_found'
-              ? '삭제됐거나 존재하지 않는 작업입니다.'
-              : '잠시 후 다시 시도해주세요.'}
+              ? 'This task has been deleted or does not exist.'
+              : 'Please try again later.'}
           </p>
           <Link href="/tasks" className="mt-6 inline-block rounded-2xl bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors">
             마켓으로 돌아가기
@@ -226,12 +226,12 @@ export default function TaskDetailPage() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         {/* Breadcrumb */}
         <Link href="/tasks" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors">
-          ← 마켓으로
+          ← Back to Market
         </Link>
 
         {isDemo && (
           <div className="mt-4 rounded-2xl border border-amber-800/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-400">
-            샘플 데이터입니다. 실제 서비스에서는 등록된 작업과 AI 에이전트 제출물이 표시됩니다.
+            Sample data — real tasks and AI agent submissions will appear here in production.
           </div>
         )}
 
@@ -247,7 +247,7 @@ export default function TaskDetailPage() {
                   </span>
                 )}
                 <span className="rounded-full border border-gray-700 bg-gray-800 px-3 py-0.5 text-xs text-gray-400">
-                  제출 {task.submission_count}건
+                  {task.submission_count} submission{task.submission_count !== 1 ? 's' : ''}
                 </span>
               </div>
               <h1 className="mt-3 text-xl font-bold leading-snug text-gray-50 sm:text-2xl">
@@ -263,7 +263,7 @@ export default function TaskDetailPage() {
           {/* LEFT — Task description */}
           <div className="space-y-6">
             <section className="rounded-2xl border border-gray-800 bg-gray-900 p-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">작업 설명</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Task Description</h2>
               <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-gray-300">
                 {task.description}
               </p>
@@ -274,10 +274,10 @@ export default function TaskDetailPage() {
               <div className="flex items-start gap-3">
                 <span className="text-lg">🔒</span>
                 <div>
-                  <p className="text-sm font-medium text-gray-300">원본 파일은 구매 후 공개됩니다</p>
+                  <p className="text-sm font-medium text-gray-300">Full files unlocked after purchase</p>
                   <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                    미리보기는 결과물의 일부만 노출합니다. 구매를 완료하면 원본 파일 전체에 접근할 수 있습니다.
-                    마음에 드는 제출물을 선택하고 결제를 완료하세요.
+                    Preview shows a partial view. Complete payment to unlock full access to the original files.
+                    Select a submission and complete checkout.
                   </p>
                 </div>
               </div>
@@ -288,7 +288,7 @@ export default function TaskDetailPage() {
               <section className="rounded-2xl border border-emerald-800/50 bg-emerald-950/20 p-6">
                 <div className="flex items-center gap-2 text-emerald-400">
                   <span>✓</span>
-                  <h2 className="text-sm font-semibold">구매 완료 — 전체 결과물</h2>
+                  <h2 className="text-sm font-semibold">Purchase Complete — Full Deliverable</h2>
                 </div>
                 {purchasedSub.content_text && (
                   <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-gray-300">
@@ -313,7 +313,7 @@ export default function TaskDetailPage() {
               <h2 className="text-sm font-semibold text-gray-50">
                 AI 에이전트 제출물
                 <span className="ml-2 text-gray-500">
-                  ({isDemo ? DEMO_SUBMISSIONS.length : submittedSubs.length}건)
+                  ({isDemo ? DEMO_SUBMISSIONS.length : submittedSubs.length})
                 </span>
               </h2>
               {!isLoggedIn && (
@@ -333,15 +333,15 @@ export default function TaskDetailPage() {
             {submissions.length === 0 && !isDemo && (
               <div className="rounded-2xl border border-dashed border-gray-800 p-10 text-center">
                 <p className="text-2xl">🤖</p>
-                <p className="mt-3 text-sm font-medium text-gray-400">아직 제출된 결과물이 없습니다</p>
-                <p className="mt-1 text-xs text-gray-600">AI 에이전트들이 작업을 검토 중입니다.</p>
+                <p className="mt-3 text-sm font-medium text-gray-400">No submissions yet</p>
+                <p className="mt-1 text-xs text-gray-600">AI agents are reviewing the task.</p>
               </div>
             )}
 
             {/* Submission cards */}
             {(isDemo ? DEMO_SUBMISSIONS : submissions).map((sub, idx) => {
               const agentInfo   = agents[sub.agent_id]
-              const agentName   = agentInfo?.name ?? (isDemo ? AGENT_NAMES[sub.agent_id] : null) ?? `에이전트 ${idx + 1}`
+              const agentName   = agentInfo?.name ?? (isDemo ? AGENT_NAMES[sub.agent_id] : null) ?? `Agent ${idx + 1}`
               const avgRating   = agentInfo?.avg_rating
               const completedCt = agentInfo?.completed_count ?? 0
               const reviews     = agentInfo?.recentReviews ?? []
@@ -371,10 +371,10 @@ export default function TaskDetailPage() {
                               ★ {avgRating.toFixed(1)}
                             </span>
                           ) : (
-                            <span className="text-xs text-gray-600">평점 없음</span>
+                            <span className="text-xs text-gray-600">No rating</span>
                           )}
                           {completedCt > 0 && (
-                            <span className="text-xs text-gray-600">· {completedCt}건 완료</span>
+                            <span className="text-xs text-gray-600">· {completedCt} completed</span>
                           )}
                         </div>
                       </div>
@@ -396,7 +396,7 @@ export default function TaskDetailPage() {
                     </div>
                   )}
                   {!agentInfo && !isDemo && (
-                    <p className="mt-2 text-xs text-gray-700">리뷰 정보 없음</p>
+                    <p className="mt-2 text-xs text-gray-700">No reviews</p>
                   )}
 
                   {/* Thumbnail */}
@@ -410,11 +410,11 @@ export default function TaskDetailPage() {
                   {/* Preview text */}
                   <div className="mt-3 rounded-xl border border-gray-800 bg-gray-950/50 p-3">
                     <p className="text-xs leading-relaxed text-gray-400 line-clamp-4">
-                      {sub.preview_text ?? '(미리보기 없음)'}
+                      {sub.preview_text ?? '(No preview)'}
                     </p>
                     {!isPurchased && (
                       <p className="mt-2 flex items-center gap-1 text-xs text-gray-600">
-                        <span>🔒</span> 구매 후 전체 결과물 확인 가능
+                        <span>🔒</span> Full result unlocked after purchase
                       </p>
                     )}
                   </div>
@@ -426,10 +426,10 @@ export default function TaskDetailPage() {
                     </p>
                     <div>
                       {isPurchased && (
-                        <span className="text-xs font-semibold text-emerald-400">✓ 구매 완료</span>
+                        <span className="text-xs font-semibold text-emerald-400">✓ Purchased</span>
                       )}
                       {isSelected && (
-                        <span className="text-xs font-semibold text-blue-400">결제 진행 중</span>
+                        <span className="text-xs font-semibold text-blue-400">Payment in progress</span>
                       )}
                       {canBuy && sub.status === 'submitted' && !isDemo && (
                         <button
@@ -437,7 +437,7 @@ export default function TaskDetailPage() {
                           disabled={!!selecting}
                           className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-gray-950 transition-colors hover:bg-emerald-400 disabled:opacity-50"
                         >
-                          {selecting === sub.id ? '처리 중...' : '선택 · 결제'}
+                          {selecting === sub.id ? 'Processing...' : 'Select & Pay'}
                         </button>
                       )}
                       {canBuy && sub.status === 'submitted' && isDemo && (
@@ -446,7 +446,7 @@ export default function TaskDetailPage() {
                         </Link>
                       )}
                       {!isOwner && !isPurchased && isLoggedIn && sub.status === 'submitted' && (
-                        <span className="text-xs text-gray-600">비교 중</span>
+                        <span className="text-xs text-gray-600">Comparing</span>
                       )}
                       {!isLoggedIn && sub.status === 'submitted' && (
                         <Link href="/auth/login" className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2 text-xs text-gray-300 hover:bg-gray-700 transition-colors">
@@ -462,7 +462,7 @@ export default function TaskDetailPage() {
             {/* Not owner notice */}
             {task.status === 'completed' && !isOwner && (
               <div className="rounded-2xl border border-gray-800 bg-gray-900/50 p-4 text-center">
-                <p className="text-xs text-gray-500">이 작업은 이미 완료되었습니다.</p>
+                <p className="text-xs text-gray-500">This task has already been completed.</p>
               </div>
             )}
           </div>

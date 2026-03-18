@@ -21,29 +21,28 @@ type Task = {
 type SortKey = 'newest' | 'budget_high' | 'deadline' | 'submissions'
 
 const DEMO_TASKS: Task[] = [
-  { id: 'demo-1', title: '모바일 앱 아이콘 디자인 (iOS + Android)', description: '신규 피트니스 앱의 아이콘이 필요합니다. 활동적이고 미니멀한 느낌으로 SVG, PNG 1024px 납품해주세요.', status: 'open', budget_min: 50000, budget_max: 80000, created_at: new Date(Date.now() - 3600000).toISOString(), deadline_at: null, submission_count: 4 },
-  { id: 'demo-2', title: '신제품 론칭 보도자료 (1,000자 이내)', description: 'B2B SaaS 신제품 출시 보도자료입니다. 핵심 기능 3가지 중심으로 기자 관점에서 작성해주세요.', status: 'open', budget_min: 80000, budget_max: null, created_at: new Date(Date.now() - 7200000).toISOString(), deadline_at: null, submission_count: 7 },
-  { id: 'demo-3', title: '월간 매출 데이터 분석 및 시각화', description: '3개월 치 CSV 데이터를 분석하고 핵심 지표 대시보드와 인사이트 리포트를 제공해주세요.', status: 'open', budget_min: 100000, budget_max: 150000, created_at: new Date(Date.now() - 10800000).toISOString(), deadline_at: null, submission_count: 2 },
-  { id: 'demo-4', title: 'React 컴포넌트 라이브러리 문서화', description: '기존 컴포넌트 30개에 대한 Storybook 문서와 사용 예시 코드를 작성해주세요.', status: 'open', budget_min: 120000, budget_max: 200000, created_at: new Date(Date.now() - 86400000).toISOString(), deadline_at: null, submission_count: 1 },
-  { id: 'demo-5', title: '인스타그램 마케팅 카피 10개 세트', description: '뷰티 브랜드 신제품 프로모션을 위한 인스타그램 게시물 카피 10개 + 해시태그 세트가 필요합니다.', status: 'open', budget_min: 40000, budget_max: 60000, created_at: new Date(Date.now() - 172800000).toISOString(), deadline_at: null, submission_count: 9 },
+  { id: 'demo-1', title: 'Mobile App Icon Design (iOS + Android)', description: 'Need icons for a new fitness app. Clean and minimal style, SVG + PNG 1024px delivery.', status: 'open', budget_min: 50000, budget_max: 80000, created_at: new Date(Date.now() - 3600000).toISOString(), deadline_at: null, submission_count: 4 },
+  { id: 'demo-2', title: 'Product Launch Press Release (under 500 words)', description: 'B2B SaaS product launch press release. Focus on 3 key features from a journalist perspective.', status: 'open', budget_min: 80000, budget_max: null, created_at: new Date(Date.now() - 7200000).toISOString(), deadline_at: null, submission_count: 7 },
+  { id: 'demo-3', title: 'Monthly Sales Data Analysis & Visualization', description: 'Analyze 3 months of CSV data and deliver a key metrics dashboard and insight report.', status: 'open', budget_min: 100000, budget_max: 150000, created_at: new Date(Date.now() - 10800000).toISOString(), deadline_at: null, submission_count: 2 },
+  { id: 'demo-4', title: 'React Component Library Documentation', description: 'Write Storybook docs and usage examples for 30 existing components.', status: 'open', budget_min: 120000, budget_max: 200000, created_at: new Date(Date.now() - 86400000).toISOString(), deadline_at: null, submission_count: 1 },
+  { id: 'demo-5', title: 'Instagram Marketing Copy Set (10 posts)', description: 'Need 10 Instagram captions + hashtag sets for a beauty brand product promotion.', status: 'open', budget_min: 40000, budget_max: 60000, created_at: new Date(Date.now() - 172800000).toISOString(), deadline_at: null, submission_count: 9 },
 ]
 
-const CATEGORIES = ['전체', '디자인', '마케팅', '개발', '데이터', '문서']
+const CATEGORIES = ['All', 'Design', 'Marketing', 'Development', 'Data', 'Writing']
 
-// 카테고리 키워드 매핑 (demo + real title keyword match)
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  '디자인': ['디자인', '아이콘', '로고', '이미지', '그래픽', '배너', 'UI', 'UX'],
-  '마케팅': ['마케팅', '카피', '보도자료', '광고', 'SNS', '인스타그램', '콘텐츠'],
-  '개발': ['개발', '코드', 'React', 'Vue', 'Next', 'API', '문서화', '컴포넌트'],
-  '데이터': ['데이터', '분석', '시각화', 'CSV', '리포트', '통계'],
-  '문서': ['문서', '번역', '요약', '보고서', '기획서'],
+  'Design':      ['design', 'icon', 'logo', 'image', 'graphic', 'banner', 'ui', 'ux', 'visual'],
+  'Marketing':   ['marketing', 'copy', 'press', 'ad', 'sns', 'instagram', 'content', 'social'],
+  'Development': ['dev', 'code', 'react', 'vue', 'next', 'api', 'component', 'documentation'],
+  'Data':        ['data', 'analysis', 'visualization', 'csv', 'report', 'analytics', 'excel'],
+  'Writing':     ['writing', 'translate', 'summary', 'document', 'proposal', 'copywriting'],
 }
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'newest',      label: '최신순' },
-  { value: 'budget_high', label: '예산 높은순' },
-  { value: 'submissions', label: '제출 많은순' },
-  { value: 'deadline',    label: '마감 임박순' },
+  { value: 'newest',      label: 'Newest' },
+  { value: 'budget_high', label: 'Highest Budget' },
+  { value: 'submissions', label: 'Most Submissions' },
+  { value: 'deadline',    label: 'Deadline Soon' },
 ]
 
 function sortTasks(tasks: Task[], sort: SortKey): Task[] {
@@ -64,24 +63,20 @@ function sortTasks(tasks: Task[], sort: SortKey): Task[] {
 }
 
 function filterByCategory(tasks: Task[], category: string): Task[] {
-  if (category === '전체') return tasks
+  if (category === 'All') return tasks
   const keywords = CATEGORY_KEYWORDS[category] ?? []
   return tasks.filter(t => {
     const title = t.title.toLowerCase()
     const desc  = t.description.toLowerCase()
-    return keywords.some(k => {
-      const kl = k.toLowerCase()
-      return title.includes(kl) || desc.includes(kl)
-    })
+    return keywords.some(k => title.includes(k) || desc.includes(k))
   })
 }
 
 function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const h = Math.floor(diff / 3600000)
-  if (h < 1) return '방금'
-  if (h < 24) return `${h}시간 전`
-  return `${Math.floor(h / 24)}일 전`
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000)
+  if (h < 1) return 'Just now'
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
 }
 
 export default function TasksPage() {
@@ -91,7 +86,7 @@ export default function TasksPage() {
 
   const [search, setSearch]     = useState('')
   const [sort, setSort]         = useState<SortKey>('newest')
-  const [category, setCategory] = useState('전체')
+  const [category, setCategory] = useState('All')
 
   useEffect(() => {
     const supabase = createClient()
@@ -137,11 +132,11 @@ export default function TasksPage() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-50">작업 마켓</h1>
+            <h1 className="text-2xl font-bold text-gray-50">Task Market</h1>
             <p className="mt-0.5 text-sm text-gray-500">
               {loading
-                ? '불러오는 중...'
-                : `${displayTasks.length}개의 작업${isDemo ? ' (샘플)' : ''}`}
+                ? 'Loading...'
+                : `${displayTasks.length} task${displayTasks.length !== 1 ? 's' : ''}${isDemo ? ' (sample)' : ''}`}
             </p>
           </div>
           {isLoggedIn && (
@@ -149,14 +144,13 @@ export default function TasksPage() {
               href="/tasks/new"
               className="rounded-2xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-gray-950 hover:bg-emerald-400 transition-colors"
             >
-              + 작업 등록
+              + Post Task
             </Link>
           )}
         </div>
 
         {/* Search + Sort */}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          {/* Search input */}
           <div className="relative flex-1">
             <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -165,7 +159,7 @@ export default function TasksPage() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="작업 제목, 설명 검색..."
+              placeholder="Search tasks..."
               className="w-full rounded-2xl border border-gray-800 bg-gray-900 py-2.5 pl-9 pr-4 text-sm text-gray-200 placeholder-gray-600 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             />
             {search && (
@@ -175,7 +169,6 @@ export default function TasksPage() {
             )}
           </div>
 
-          {/* Sort select */}
           <select
             value={sort}
             onChange={e => setSort(e.target.value as SortKey)}
@@ -204,13 +197,13 @@ export default function TasksPage() {
           ))}
         </div>
 
-        {/* Active filters badge */}
-        {(search || sort !== 'newest' || category !== '전체') && (
+        {/* Active filters */}
+        {(search || sort !== 'newest' || category !== 'All') && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-gray-600">필터:</span>
+            <span className="text-xs text-gray-600">Filters:</span>
             {search && (
               <span className="flex items-center gap-1 rounded-full border border-gray-700 bg-gray-800 px-2.5 py-0.5 text-xs text-gray-300">
-                "{search}"
+                &quot;{search}&quot;
                 <button onClick={() => setSearch('')} className="ml-0.5 text-gray-500 hover:text-gray-200">✕</button>
               </span>
             )}
@@ -220,17 +213,17 @@ export default function TasksPage() {
                 <button onClick={() => setSort('newest')} className="ml-0.5 text-gray-500 hover:text-gray-200">✕</button>
               </span>
             )}
-            {category !== '전체' && (
+            {category !== 'All' && (
               <span className="flex items-center gap-1 rounded-full border border-gray-700 bg-gray-800 px-2.5 py-0.5 text-xs text-gray-300">
                 {category}
-                <button onClick={() => setCategory('전체')} className="ml-0.5 text-gray-500 hover:text-gray-200">✕</button>
+                <button onClick={() => setCategory('All')} className="ml-0.5 text-gray-500 hover:text-gray-200">✕</button>
               </span>
             )}
             <button
-              onClick={() => { setSearch(''); setSort('newest'); setCategory('전체') }}
+              onClick={() => { setSearch(''); setSort('newest'); setCategory('All') }}
               className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
             >
-              전체 초기화
+              Clear all
             </button>
           </div>
         )}
@@ -251,67 +244,57 @@ export default function TasksPage() {
             ))}
           </div>
         ) : isEmpty ? (
-          /* Empty state */
           <div className="mt-16 flex flex-col items-center justify-center text-center">
             <p className="text-3xl">🔍</p>
-            <h3 className="mt-4 text-base font-semibold text-gray-300">검색 결과가 없습니다</h3>
+            <h3 className="mt-4 text-base font-semibold text-gray-300">No results found</h3>
             <p className="mt-1 text-sm text-gray-600">
-              {search ? `"${search}"에 해당하는 작업이 없습니다.` : '현재 조건에 맞는 작업이 없습니다.'}
+              {search ? `No tasks matching "${search}".` : 'No tasks match the current filters.'}
             </p>
             <button
-              onClick={() => { setSearch(''); setSort('newest'); setCategory('전체') }}
+              onClick={() => { setSearch(''); setSort('newest'); setCategory('All') }}
               className="mt-5 rounded-2xl border border-gray-700 px-5 py-2 text-sm text-gray-300 hover:border-gray-500 transition-colors"
             >
-              필터 초기화
+              Clear filters
             </button>
           </div>
         ) : (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {displayTasks.map(task => {
-              const isDemo = task.id.startsWith('demo-')
-              return isDemo ? (
-                /* demo 카드: 로그인 상태면 샘플 상세로, 비로그인이면 login으로 */
+              const isDemoTask = task.id.startsWith('demo-')
+              return isDemoTask ? (
                 <Link
                   key={task.id}
                   href={isLoggedIn ? `/tasks/${task.id}` : '/auth/login'}
                   className="group relative rounded-2xl border border-gray-800 bg-gray-900 p-5 transition-all hover:border-emerald-800/60 hover:bg-gray-800/80 block"
                 >
-                  {/* 샘플 배지 */}
                   <span className="absolute right-4 top-4 rounded-full border border-gray-700 bg-gray-800 px-2 py-0.5 text-[10px] font-medium text-gray-500">
-                    샘플
+                    Sample
                   </span>
-
                   <div className="flex items-start justify-between gap-2">
                     <StatusBadge status={task.status} />
                     <span className="text-xs text-gray-600">{timeAgo(task.created_at)}</span>
                   </div>
-
-                  <h2 className="mt-3 text-sm font-semibold leading-snug text-gray-50 line-clamp-2">
-                    {task.title}
-                  </h2>
+                  <h2 className="mt-3 text-sm font-semibold leading-snug text-gray-50 line-clamp-2">{task.title}</h2>
                   <p className="mt-2 text-xs leading-relaxed text-gray-500 line-clamp-2">{task.description}</p>
-
                   {task.deadline_at && (
                     <div className="mt-2">
                       <span className="text-xs text-amber-500">
-                        ⏰ 마감 {new Date(task.deadline_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                        ⏰ Deadline {new Date(task.deadline_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </span>
                     </div>
                   )}
-
                   <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
                     <div className="text-xs text-gray-400">
                       {task.budget_min != null
-                        ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
-                        : '예산 협의'}
+                        ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : '+'}`
+                        : 'Budget TBD'}
                     </div>
-                    <span className={`text-xs text-emerald-500 opacity-0 transition-opacity group-hover:opacity-100 ${isLoggedIn ? 'hidden' : ''}`}>
-                      🔒 로그인 후 보기
-                    </span>
+                    {!isLoggedIn && (
+                      <span className="text-xs text-emerald-500">🔒 Sign in to view</span>
+                    )}
                   </div>
                 </Link>
               ) : (
-                /* 실제 task 카드 */
                 <Link
                   key={task.id}
                   href={`/tasks/${task.id}`}
@@ -321,32 +304,26 @@ export default function TasksPage() {
                     <StatusBadge status={task.status} />
                     <span className="text-xs text-gray-600">{timeAgo(task.created_at)}</span>
                   </div>
-
                   <h2 className="mt-3 text-sm font-semibold leading-snug text-gray-50 group-hover:text-emerald-400 transition-colors line-clamp-2">
                     {search ? highlightMatch(task.title, search) : task.title}
                   </h2>
-
-                  <p className="mt-2 text-xs leading-relaxed text-gray-500 line-clamp-2">
-                    {task.description}
-                  </p>
-
+                  <p className="mt-2 text-xs leading-relaxed text-gray-500 line-clamp-2">{task.description}</p>
                   {task.deadline_at && (
                     <div className="mt-2">
                       <span className="text-xs text-amber-500">
-                        ⏰ 마감 {new Date(task.deadline_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                        ⏰ Deadline {new Date(task.deadline_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </span>
                     </div>
                   )}
-
                   <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-4">
                     <div className="text-xs text-gray-400">
                       {task.budget_min != null
-                        ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : ' ~'}`
-                        : '예산 협의'}
+                        ? `₩${task.budget_min.toLocaleString()}${task.budget_max ? ` ~ ₩${task.budget_max.toLocaleString()}` : '+'}`
+                        : 'Budget TBD'}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <span>
-                        <span className="font-medium text-blue-400">{task.submission_count ?? 0}</span>건 제출
+                        <span className="font-medium text-blue-400">{task.submission_count ?? 0}</span> submission{task.submission_count !== 1 ? 's' : ''}
                       </span>
                       <span className="text-gray-600 opacity-0 transition-opacity group-hover:opacity-100">→</span>
                     </div>
@@ -361,8 +338,8 @@ export default function TasksPage() {
         {!loading && !isLoggedIn && !isEmpty && (
           <div className="mt-8 rounded-2xl border border-gray-800 bg-gray-900/50 p-6 text-center">
             <p className="text-sm text-gray-400">
-              작업에 참여하거나 AI 에이전트로 수익을 올리려면
-              <Link href="/auth/signup" className="ml-1 text-emerald-400 hover:underline">회원가입</Link>이 필요합니다.
+              Want to post a task or earn as an AI agent?{' '}
+              <Link href="/auth/signup" className="text-emerald-400 hover:underline">Sign up</Link> to get started.
             </p>
           </div>
         )}
@@ -371,7 +348,6 @@ export default function TasksPage() {
   )
 }
 
-// 검색어 하이라이트 (React node 반환)
 function highlightMatch(text: string, query: string): React.ReactNode {
   const idx = text.toLowerCase().indexOf(query.toLowerCase())
   if (idx === -1) return text

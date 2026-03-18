@@ -1,10 +1,10 @@
 'use client'
 
 // src/app/tasks/new/page.tsx
-// Task 등록 폼 (user 역할 전용)
+// Task creation form (user role only)
 // - title, description, budget_min/max, deadline_at
-// - POST /api/tasks → 성공 시 /tasks로 이동
-// - provider 접근 시 /tasks로 리다이렉트
+// - POST /api/tasks → redirects to /tasks on success
+// - Redirects providers to /tasks
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -34,7 +34,6 @@ export default function NewTaskPage() {
       const meta = session.user.app_metadata ?? session.user.user_metadata ?? {}
       const role = meta.app_role ?? session.user.user_metadata?.app_role ?? session.user.user_metadata?.role ?? 'user'
 
-      // provider는 task 등록 불가
       if (role === 'provider') { router.push('/tasks'); return }
 
       setToken(session.access_token)
@@ -53,8 +52,8 @@ export default function NewTaskPage() {
 
     const { title, description, budget_min, budget_max, deadline_at } = form
 
-    if (!title.trim()) { setError('제목을 입력해주세요.'); return }
-    if (!description.trim()) { setError('설명을 입력해주세요.'); return }
+    if (!title.trim()) { setError('Title is required.'); return }
+    if (!description.trim()) { setError('Description is required.'); return }
 
     setSubmitting(true)
     setError(null)
@@ -76,7 +75,7 @@ export default function NewTaskPage() {
     const data = await res.json()
 
     if (!res.ok) {
-      setError(data.error ?? '등록 실패')
+      setError(data.error ?? 'Failed to post task.')
       setSubmitting(false)
       return
     }
@@ -84,39 +83,37 @@ export default function NewTaskPage() {
     router.push('/tasks')
   }
 
-  if (loading) return <main className="p-8"><p>불러오는 중...</p></main>
+  if (loading) return <main className="p-8"><p className="text-gray-400 text-sm">Loading...</p></main>
 
   return (
     <main className="mx-auto max-w-xl p-8">
       <button onClick={() => router.push('/tasks')} className="mb-4 text-sm text-gray-500 underline">
-        ← 목록으로
+        ← Back to list
       </button>
 
-      <h1 className="mb-6 text-2xl font-bold">Task 등록</h1>
+      <h1 className="mb-6 text-2xl font-bold">Post a Task</h1>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* 제목 */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">제목 *</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Title *</label>
           <input
             name="title"
             value={form.title}
             onChange={handleChange}
-            placeholder="어떤 작업이 필요한가요?"
+            placeholder="What do you need done?"
             maxLength={200}
             required
             className="w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
           />
         </div>
 
-        {/* 설명 */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">설명 *</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Description *</label>
           <textarea
             name="description"
             value={form.description}
             onChange={handleChange}
-            placeholder="작업 요건, 형식, 주의사항 등을 자세히 적어주세요."
+            placeholder="Describe requirements, format, and any notes in detail."
             rows={5}
             maxLength={5000}
             required
@@ -124,10 +121,9 @@ export default function NewTaskPage() {
           />
         </div>
 
-        {/* 예산 */}
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-gray-700">최소 예산 (원)</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Min Budget (₩)</label>
             <input
               name="budget_min"
               type="number"
@@ -135,12 +131,12 @@ export default function NewTaskPage() {
               onChange={handleChange}
               min={0}
               step={1000}
-              placeholder="예: 10000"
+              placeholder="e.g. 10000"
               className="w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
             />
           </div>
           <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-gray-700">최대 예산 (원)</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Max Budget (₩)</label>
             <input
               name="budget_max"
               type="number"
@@ -148,15 +144,14 @@ export default function NewTaskPage() {
               onChange={handleChange}
               min={0}
               step={1000}
-              placeholder="예: 50000"
+              placeholder="e.g. 50000"
               className="w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
             />
           </div>
         </div>
 
-        {/* 마감일 */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">마감일</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Deadline</label>
           <input
             name="deadline_at"
             type="datetime-local"
@@ -175,7 +170,7 @@ export default function NewTaskPage() {
           disabled={submitting}
           className="w-full rounded bg-violet-600 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
         >
-          {submitting ? '등록 중...' : 'Task 등록'}
+          {submitting ? 'Posting...' : 'Post Task'}
         </button>
       </form>
     </main>

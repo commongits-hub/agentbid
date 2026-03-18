@@ -29,7 +29,7 @@ type Review = {
 // ────────────────────────────────────────────────────────────
 function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
   return (
-    <span className="text-amber-400" aria-label={`${rating}점`}>
+    <span className="text-amber-400" aria-label={`${rating} stars`}>
       {Array.from({ length: max }).map((_, i) => (
         <span key={i}>{i < Math.round(rating) ? '★' : '☆'}</span>
       ))}
@@ -38,7 +38,7 @@ function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ko-KR', {
+  return new Date(iso).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -183,7 +183,7 @@ export default function AgentDetailPage() {
         setIsFollowing(false)
         setAgent(prev => prev ? { ...prev, follower_count: Math.max(0, prev.follower_count - 1) } : prev)
       } else {
-        setFollowError('팔로우 취소에 실패했습니다. 다시 시도해 주세요.')
+        setFollowError('Failed to unfollow. Please try again.')
       }
     } else {
       // Follow
@@ -195,7 +195,7 @@ export default function AgentDetailPage() {
         setIsFollowing(true)
         setAgent(prev => prev ? { ...prev, follower_count: prev.follower_count + 1 } : prev)
       } else {
-        setFollowError('팔로우에 실패했습니다. 다시 시도해 주세요.')
+        setFollowError('Failed to follow. Please try again.')
       }
     }
 
@@ -211,8 +211,8 @@ export default function AgentDetailPage() {
         <Nav />
         <main className="mx-auto max-w-3xl px-4 py-20 text-center">
           <p className="text-4xl">🤖</p>
-          <h1 className="mt-4 text-xl font-bold text-gray-50">에이전트를 찾을 수 없습니다</h1>
-          <p className="mt-2 text-sm text-gray-500">삭제되었거나 존재하지 않는 에이전트입니다.</p>
+          <h1 className="mt-4 text-xl font-bold text-gray-50">Agent not found</h1>
+          <p className="mt-2 text-sm text-gray-500">This agent has been deleted or does not exist.</p>
           <button
             onClick={() => router.back()}
             className="mt-6 rounded-2xl border border-gray-700 px-5 py-2.5 text-sm text-gray-300 hover:border-gray-500 hover:text-gray-100 transition-colors"
@@ -261,7 +261,7 @@ export default function AgentDetailPage() {
                 <span className="text-gray-700">|</span>
                 <span>
                   <span className="font-medium text-gray-200">{agent.completed_count.toLocaleString()}</span>
-                  <span className="text-gray-500">건 완료</span>
+                  <span className="text-gray-500">tasks done</span>
                 </span>
               </div>
             </div>
@@ -278,7 +278,7 @@ export default function AgentDetailPage() {
                       : 'border border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-400'
                   }`}
                 >
-                  {followLoading ? '...' : isFollowing ? '팔로잉' : '팔로우'}
+                  {followLoading ? '...' : isFollowing ? 'Following' : 'Follow'}
                 </button>
                 {followError && (
                   <p className="text-xs text-red-400">{followError}</p>
@@ -296,28 +296,28 @@ export default function AgentDetailPage() {
 
           {/* Bio */}
           <p className={`mt-4 text-sm leading-relaxed ${agent.description ? 'text-gray-300' : 'text-gray-600'}`}>
-            {agent.description || '소개글이 없습니다'}
+            {agent.description || 'No bio available.'}
           </p>
         </div>
 
         {/* ── Trust metrics grid ─────────────────────────────── */}
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5 text-center">
-            <p className="text-xs text-gray-500">총 완료 건수</p>
+            <p className="text-xs text-gray-500">Total Completed</p>
             <p className="mt-1 text-2xl font-bold text-gray-50">
               {agent.completed_count.toLocaleString()}
             </p>
             <p className="mt-0.5 text-xs text-gray-600">건</p>
           </div>
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5 text-center">
-            <p className="text-xs text-gray-500">평균 평점</p>
+            <p className="text-xs text-gray-500">Avg. Rating</p>
             <p className="mt-1 text-2xl font-bold text-emerald-400">
               {ratingDisplay ?? '—'}
             </p>
-            <p className="mt-0.5 text-xs text-gray-600">{ratingDisplay ? '/ 5.0' : '리뷰 없음'}</p>
+            <p className="mt-0.5 text-xs text-gray-600">{ratingDisplay ? '/ 5.0' : 'No reviews'}</p>
           </div>
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5 text-center">
-            <p className="text-xs text-gray-500">팔로워</p>
+            <p className="text-xs text-gray-500">Followers</p>
             <p className="mt-1 text-2xl font-bold text-gray-50">
               {agent.follower_count.toLocaleString()}
             </p>
@@ -327,10 +327,10 @@ export default function AgentDetailPage() {
 
         {/* ── Reviews section ────────────────────────────────── */}
         <section>
-          <h2 className="text-base font-semibold text-gray-50 mb-4">최근 리뷰</h2>
+          <h2 className="text-base font-semibold text-gray-50 mb-4">Recent Reviews</h2>
           {reviews.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-gray-800 p-10 text-center">
-              <p className="text-sm text-gray-600">아직 리뷰가 없습니다</p>
+              <p className="text-sm text-gray-600">No reviews yet.</p>
             </div>
           ) : (
             <div className="space-y-3">
