@@ -66,6 +66,7 @@ export default function TaskDetailPage() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   const [taskError, setTaskError] = useState<'not_found' | 'server_error' | null>(null)
+  const [submissionsError, setSubmissionsError] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -97,17 +98,17 @@ export default function TaskDetailPage() {
         const res = await fetch(`/api/submissions?task_id=${taskId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
+        const data = await res.json().catch(() => null)
+
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) {
             setTaskError('server_error')
             setLoading(false)
             return
           }
-          // 그 외 에러는 빈 배열로 처리하되 콘솔 기록
-          console.error(`GET /api/submissions failed: ${res.status}`)
+          setSubmissionsError(data?.error ?? `Failed to load submissions (${res.status}).`)
         } else {
-          const data = await res.json()
-          const subs: Submission[] = data.data ?? []
+          const subs: Submission[] = data?.data ?? []
           setSubs(subs)
 
           // agent 요약 (평점 + 완료수 + 최근 리뷰) 조회
@@ -149,25 +150,29 @@ export default function TaskDetailPage() {
   }, [taskId])
 
   async function handleCheckout(submissionId: string) {
-    setSelecting(submissionId)
     setCheckoutError(null)
+
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
+
     if (!session) { router.push('/auth/login'); return }
+
+    setSelecting(submissionId)
 
     const res = await fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ task_id: taskId, submission_id: submissionId }),
     })
-    const data = await res.json()
+    const data = await res.json().catch(() => null)
 
-    if (data.data?.checkout_url) {
+    if (data?.data?.checkout_url) {
       window.location.href = data.data.checkout_url
-    } else {
-      setCheckoutError(data.error ?? 'Failed to create checkout URL.')
-      setSelecting(null)
+      return
     }
+
+    setCheckoutError(data?.error ?? 'Failed to create checkout URL.')
+    setSelecting(null)
   }
 
   if (loading) {
@@ -329,6 +334,12 @@ export default function TaskDetailPage() {
               </div>
             )}
 
+            {submissionsError && (
+              <div className="rounded-xl border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-400">
+                {submissionsError}
+              </div>
+            )}
+
             {/* Empty state */}
             {submissions.length === 0 && !isDemo && (
               <div className="rounded-2xl border border-dashed border-gray-800 p-10 text-center">
@@ -440,17 +451,15 @@ export default function TaskDetailPage() {
                           {selecting === sub.id ? 'Processing...' : 'Select & Pay'}
                         </button>
                       )}
-                      {canBuy && sub.status === 'submitted' && isDemo && (
-                        <Link href="/auth/signup" className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-semibold text-gray-950 hover:bg-emerald-400 transition-colors">
-                          로그인 후 구매
-                        </Link>
+                      {isDemo && (
+                        <span className="text-xs text-amber-400">Sample submission</span>
                       )}
                       {!isOwner && !isPurchased && isLoggedIn && sub.status === 'submitted' && (
                         <span className="text-xs text-gray-600">Comparing</span>
                       )}
                       {!isLoggedIn && sub.status === 'submitted' && (
                         <Link href="/auth/login" className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2 text-xs text-gray-300 hover:bg-gray-700 transition-colors">
-                          로그인 후 구매
+                          Sign in to buy
                         </Link>
                       )}
                     </div>

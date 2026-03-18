@@ -31,11 +31,12 @@ const DEMO_TASKS: Task[] = [
 const CATEGORIES = ['All', 'Design', 'Marketing', 'Development', 'Data', 'Writing']
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  'Design':      ['design', 'icon', 'logo', 'image', 'graphic', 'banner', 'ui', 'ux', 'visual'],
-  'Marketing':   ['marketing', 'copy', 'press', 'ad', 'sns', 'instagram', 'content', 'social'],
-  'Development': ['dev', 'code', 'react', 'vue', 'next', 'api', 'component', 'documentation'],
-  'Data':        ['data', 'analysis', 'visualization', 'csv', 'report', 'analytics', 'excel'],
-  'Writing':     ['writing', 'translate', 'summary', 'document', 'proposal', 'copywriting'],
+  All:         [],
+  Design:      ['design', 'icon', 'logo', 'image', 'graphic', 'banner', 'ui', 'ux', 'visual'],
+  Marketing:   ['marketing', 'copy', 'press', 'ad', 'sns', 'instagram', 'content', 'social'],
+  Development: ['dev', 'code', 'react', 'vue', 'next', 'api', 'component', 'documentation'],
+  Data:        ['data', 'analysis', 'visualization', 'csv', 'report', 'analytics', 'excel'],
+  Writing:     ['writing', 'translate', 'summary', 'document', 'proposal', 'copywriting'],
 }
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -83,6 +84,7 @@ export default function TasksPage() {
   const [tasks, setTasks]       = useState<Task[]>([])
   const [loading, setLoading]   = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loadError, setLoadError]   = useState<string | null>(null)
 
   const [search, setSearch]     = useState('')
   const [sort, setSort]         = useState<SortKey>('newest')
@@ -94,7 +96,7 @@ export default function TasksPage() {
       const { data: { session } } = await supabase.auth.getSession()
       setIsLoggedIn(!!session)
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('tasks')
         .select('id, title, description, status, budget_min, budget_max, created_at, deadline_at, submission_count')
         .eq('status', 'open')
@@ -102,13 +104,19 @@ export default function TasksPage() {
         .order('created_at', { ascending: false })
         .limit(50)
 
+      if (error) {
+        setLoadError(error.message)
+        setLoading(false)
+        return
+      }
+
       setTasks((data as Task[]) ?? [])
       setLoading(false)
     }
     load()
   }, [])
 
-  const rawTasks = loading ? [] : (tasks.length > 0 ? tasks : DEMO_TASKS)
+  const rawTasks = loading || loadError ? [] : (tasks.length > 0 ? tasks : DEMO_TASKS)
 
   const displayTasks = useMemo(() => {
     let result = filterByCategory(rawTasks, category)
@@ -121,22 +129,23 @@ export default function TasksPage() {
     return sortTasks(result, sort)
   }, [rawTasks, search, sort, category])
 
-  const isEmpty = !loading && displayTasks.length === 0
-  const isDemo  = tasks.length === 0 && !loading
+  const isEmpty = !loading && !loadError && displayTasks.length === 0
+  const isDemo  = !loading && !loadError && tasks.length === 0
 
   return (
     <div className="min-h-screen bg-[#030712]">
       <Nav />
 
       <main className="mx-auto max-w-6xl px-4 py-10">
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-50">Task Market</h1>
             <p className="mt-0.5 text-sm text-gray-500">
               {loading
                 ? 'Loading...'
-                : `${displayTasks.length} task${displayTasks.length !== 1 ? 's' : ''}${isDemo ? ' (sample)' : ''}`}
+                : loadError
+                  ? 'Failed to load tasks'
+                  : `${displayTasks.length} task${displayTasks.length !== 1 ? 's' : ''}${isDemo ? ' (sample)' : ''}`}
             </p>
           </div>
           {isLoggedIn && (
@@ -149,7 +158,12 @@ export default function TasksPage() {
           )}
         </div>
 
-        {/* Search + Sort */}
+        {loadError && (
+          <div className="mt-6 rounded-2xl border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-400">
+            {loadError}
+          </div>
+        )}
+
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -180,7 +194,6 @@ export default function TasksPage() {
           </select>
         </div>
 
-        {/* Category filter */}
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           {CATEGORIES.map(cat => (
             <button
@@ -197,7 +210,6 @@ export default function TasksPage() {
           ))}
         </div>
 
-        {/* Active filters */}
         {(search || sort !== 'newest' || category !== 'All') && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-xs text-gray-600">Filters:</span>
@@ -228,7 +240,6 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* Task grid */}
         {loading ? (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -242,6 +253,12 @@ export default function TasksPage() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : loadError ? (
+          <div className="mt-16 flex flex-col items-center justify-center text-center">
+            <p className="text-3xl">⚠️</p>
+            <h3 className="mt-4 text-base font-semibold text-gray-300">Failed to load tasks</h3>
+            <p className="mt-1 text-sm text-gray-600">Please try again later.</p>
           </div>
         ) : isEmpty ? (
           <div className="mt-16 flex flex-col items-center justify-center text-center">
@@ -334,8 +351,7 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* Not logged in hint */}
-        {!loading && !isLoggedIn && !isEmpty && (
+        {!loading && !loadError && !isLoggedIn && !isEmpty && (
           <div className="mt-8 rounded-2xl border border-gray-800 bg-gray-900/50 p-6 text-center">
             <p className="text-sm text-gray-400">
               Want to post a task or earn as an AI agent?{' '}
@@ -354,7 +370,9 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-emerald-500/20 text-emerald-300 rounded px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      <mark className="rounded bg-emerald-500/20 px-0.5 text-emerald-300">
+        {text.slice(idx, idx + query.length)}
+      </mark>
       {text.slice(idx + query.length)}
     </>
   )

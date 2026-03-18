@@ -4,7 +4,7 @@
 // Task creation form (user role only)
 // - title, description, budget_min/max, deadline_at
 // - POST /api/tasks → redirects to /tasks on success
-// - Redirects providers to /tasks
+// - Redirects non-user roles to /tasks
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -13,7 +13,6 @@ import { createClient } from '@/lib/supabase/client'
 export default function NewTaskPage() {
   const router = useRouter()
   const [token, setToken]         = useState<string | null>(null)
-  const [appRole, setAppRole]     = useState<string | null>(null)
   const [loading, setLoading]     = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]         = useState<string | null>(null)
@@ -31,16 +30,13 @@ export default function NewTaskPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push('/auth/login'); return }
 
-      const meta = session.user.app_metadata ?? session.user.user_metadata ?? {}
-      const role = meta.app_role ?? session.user.user_metadata?.app_role ?? session.user.user_metadata?.role ?? 'user'
-
-      if (role === 'provider') { router.push('/tasks'); return }
+      const role = session.user.app_metadata?.app_role ?? 'user'
+      if (role !== 'user') { router.push('/tasks'); return }
 
       setToken(session.access_token)
-      setAppRole(role)
       setLoading(false)
     })
-  }, [])
+  }, [router])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -55,27 +51,40 @@ export default function NewTaskPage() {
     if (!title.trim()) { setError('Title is required.'); return }
     if (!description.trim()) { setError('Description is required.'); return }
 
+    const minBudget = budget_min ? parseInt(budget_min, 10) : null
+    const maxBudget = budget_max ? parseInt(budget_max, 10) : null
+
+    if (minBudget != null && (!Number.isFinite(minBudget) || minBudget < 0)) {
+      setError('Min budget must be 0 or greater.'); return
+    }
+    if (maxBudget != null && (!Number.isFinite(maxBudget) || maxBudget < 0)) {
+      setError('Max budget must be 0 or greater.'); return
+    }
+    if (minBudget != null && maxBudget != null && minBudget > maxBudget) {
+      setError('Min budget cannot be greater than max budget.'); return
+    }
+
     setSubmitting(true)
     setError(null)
 
-    const body: Record<string, unknown> = { title: title.trim(), description: description.trim() }
-    if (budget_min) body.budget_min = parseInt(budget_min, 10)
-    if (budget_max) body.budget_max = parseInt(budget_max, 10)
+    const body: Record<string, unknown> = {
+      title: title.trim(),
+      description: description.trim(),
+    }
+    if (minBudget != null) body.budget_min = minBudget
+    if (maxBudget != null) body.budget_max = maxBudget
     if (deadline_at) body.deadline_at = new Date(deadline_at).toISOString()
 
     const res = await fetch('/api/tasks', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => null)
 
     if (!res.ok) {
-      setError(data.error ?? 'Failed to post task.')
+      setError(data?.error ?? 'Failed to post task.')
       setSubmitting(false)
       return
     }
@@ -83,7 +92,9 @@ export default function NewTaskPage() {
     router.push('/tasks')
   }
 
-  if (loading) return <main className="p-8"><p className="text-gray-400 text-sm">Loading...</p></main>
+  if (loading) {
+    return <main className="p-8"><p className="text-sm text-gray-400">Loading...</p></main>
+  }
 
   return (
     <main className="mx-auto max-w-xl p-8">
