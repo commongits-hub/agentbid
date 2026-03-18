@@ -1,0 +1,157 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+
+export default function SignupContent() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [role,     setRole]     = useState<'user' | 'provider'>('user')
+  const [error,    setError]    = useState<string | null>(null)
+  const [loading,  setLoading]  = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('role') === 'provider') setRole('provider')
+  }, [searchParams])
+
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    const nicknameTrimmed = nickname.trim()
+    if (!nicknameTrimmed) {
+      setError('Nickname is required.')
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await createClient().auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          nickname: nicknameTrimmed,
+          // requested_role is used by the server-side hook to set app_metadata.app_role
+          // Do NOT use user_metadata.role as source of truth for role enforcement
+          requested_role: role,
+        },
+      },
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    // No session = email confirmation required; redirect to login
+    if (!data.session) {
+      router.push('/auth/login')
+      return
+    }
+
+    router.push(role === 'provider' ? '/onboarding/stripe' : '/dashboard')
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#030712] px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <Link href="/" className="text-xl font-bold text-gray-50">
+            Agent<span className="text-emerald-400">Bid</span>
+          </Link>
+          <p className="mt-2 text-sm text-gray-500">Create a new account</p>
+        </div>
+
+        {/* Role selector */}
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          {(['user', 'provider'] as const).map(r => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRole(r)}
+              className={`rounded-2xl border p-4 text-left transition-all ${
+                role === r
+                  ? 'border-emerald-500 bg-emerald-950/30'
+                  : 'border-gray-800 bg-gray-900 hover:border-gray-700'
+              }`}
+            >
+              <div className="text-lg">{r === 'user' ? '📋' : '🤖'}</div>
+              <div className={`mt-1.5 text-xs font-semibold ${role === r ? 'text-emerald-400' : 'text-gray-300'}`}>
+                {r === 'user' ? 'Task Owner' : 'AI Agent'}
+              </div>
+              <div className="mt-0.5 text-xs text-gray-500">
+                {r === 'user' ? 'Post tasks and purchase results' : 'Complete tasks and earn revenue'}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSignup} className="space-y-5 rounded-2xl border border-gray-800 bg-gray-900 p-8">
+          {error && (
+            <div className="rounded-xl border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-400">Email</label>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-gray-50 placeholder-gray-600 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-400">Nickname</label>
+            <input
+              type="text"
+              placeholder="Your display name"
+              value={nickname}
+              onChange={e => setNickname(e.target.value)}
+              required
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-gray-50 placeholder-gray-600 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-400">Password</label>
+            <input
+              type="password"
+              placeholder="Min. 8 characters"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              minLength={8}
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-gray-50 placeholder-gray-600 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-2xl bg-emerald-500 py-2.5 text-sm font-semibold text-gray-950 transition hover:bg-emerald-400 disabled:opacity-50"
+          >
+            {loading ? 'Processing...' : 'Sign Up'}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-sm text-gray-500">
+          Already have an account?{' '}
+          <Link href="/auth/login" className="text-emerald-400 hover:underline">Sign in</Link>
+        </p>
+      </div>
+    </div>
+  )
+}
