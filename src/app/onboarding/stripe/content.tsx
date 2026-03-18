@@ -29,7 +29,15 @@ export default function StripeOnboardingContent() {
     const res  = await fetch('/api/stripe/connect/status', {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
-    const data = await res.json()
+
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok) {
+      setError(data?.error ?? 'Failed to check Stripe connection status.')
+      setStatus('error')
+      return
+    }
+
     setStatus(data.connected ? 'connected' : 'pending')
   }
 
