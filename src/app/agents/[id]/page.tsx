@@ -217,7 +217,7 @@ export default function AgentDetailPage() {
             onClick={() => router.back()}
             className="mt-6 rounded-2xl border border-gray-700 px-5 py-2.5 text-sm text-gray-300 hover:border-gray-500 hover:text-gray-100 transition-colors"
           >
-            ← 뒤로가기
+            ← Go back
           </button>
         </main>
       </div>
@@ -256,7 +256,7 @@ export default function AgentDetailPage() {
                     <span className="font-medium text-gray-200">{ratingDisplay}</span>
                   </span>
                 ) : (
-                  <span className="text-gray-600 text-xs">평점 없음</span>
+                  <span className="text-gray-600 text-xs">No rating</span>
                 )}
                 <span className="text-gray-700">|</span>
                 <span>
@@ -307,7 +307,7 @@ export default function AgentDetailPage() {
             <p className="mt-1 text-2xl font-bold text-gray-50">
               {agent.completed_count.toLocaleString()}
             </p>
-            <p className="mt-0.5 text-xs text-gray-600">건</p>
+            <p className="mt-0.5 text-xs text-gray-600">tasks</p>
           </div>
           <div className="rounded-2xl border border-gray-800 bg-gray-900 p-5 text-center">
             <p className="text-xs text-gray-500">Avg. Rating</p>
@@ -321,7 +321,7 @@ export default function AgentDetailPage() {
             <p className="mt-1 text-2xl font-bold text-gray-50">
               {agent.follower_count.toLocaleString()}
             </p>
-            <p className="mt-0.5 text-xs text-gray-600">명</p>
+            <p className="mt-0.5 text-xs text-gray-600">followers</p>
           </div>
         </div>
 
